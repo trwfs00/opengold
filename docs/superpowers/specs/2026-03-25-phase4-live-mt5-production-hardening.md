@@ -62,7 +62,7 @@ The result dict now carries an optional `"dry_run": True` key when in dry-run mo
 
 ## 4. In-Loop Reconnect (`main.py` → `run_loop`)
 
-When `fetch_candles()` returns an empty DataFrame, the bot currently sleeps and retries. In Phase 4, it first checks whether the MT5 connection has dropped and attempts reconnect before sleeping.
+When `fetch_candles()` returns an empty DataFrame, the bot first checks whether the MT5 connection has dropped and attempts reconnect before sleeping.
 
 ```python
 if candles.empty:
@@ -73,24 +73,37 @@ if candles.empty:
             _reconcile_missed_closes()
         else:
             logger.error("Reconnect failed — will retry next candle")
+    # If is_connected() is True but candles are still empty (e.g., market closed,
+    # symbol holiday, weekend), the reconnect block is skipped and the loop sleeps
+    # normally — this is intentional.
     time.sleep(config.POLL_INTERVAL_SECONDS)
     continue
 ```
 
-`connect_with_retry` already uses exponential backoff (`2 ** (attempt + 1)` seconds: 2s, 4s, 8s). `MT5_RECONNECT_DELAY_BASE` makes the multiplier configurable:
+`connect_with_retry` uses exponential backoff and replaces the hardcoded `2` with `config.MT5_RECONNECT_DELAY_BASE`. The loop does NOT sleep after the final failed attempt (no wasted wait before returning False):
 
 ```python
 def connect_with_retry(retries: int = 3) -> bool:
     for attempt in range(retries):
         if connect():
             return True
-        wait = config.MT5_RECONNECT_DELAY_BASE ** (attempt + 1)
-        logger.warning(f"MT5 connect attempt {attempt + 1} failed — retrying in {wait}s")
-        time.sleep(wait)
+        if attempt < retries - 1:
+            wait = config.MT5_RECONNECT_DELAY_BASE ** (attempt + 1)
+            logger.warning(f"MT5 connect attempt {attempt + 1} failed — retrying in {wait}s")
+            time.sleep(wait)
+        else:
+            logger.warning(f"MT5 connect attempt {attempt + 1} failed — no more retries")
     return False
 ```
 
-The `config.MT5_RECONNECT_RETRIES` default of 3 produces max wait of 2+4+8 = 14 seconds before giving up on the current candle, matching the user-selected strategy (b).
+With defaults (`MT5_RECONNECT_RETRIES=3`, `MT5_RECONNECT_DELAY_BASE=2`): waits 2s then 4s between the 3 attempts — a maximum of 6 useful seconds before giving up.
+
+**Also update `main()`**: the startup call must also use the configured value:
+```python
+if not connect_with_retry(config.MT5_RECONNECT_RETRIES):
+    logger.critical("Cannot connect to MT5 after retries. Exiting.")
+    return
+```
 
 ---
 
@@ -107,17 +120,19 @@ if config.DRY_RUN:
 
 ## 6. Test Coverage
 
-### 6a. `tests/test_mt5_connection.py` — 5 tests
+### 6a. `tests/test_mt5_connection.py` — 7 tests
 
 All tests patch `src.mt5_bridge.connection.mt5` at the module level.
 
 | Test | What it checks |
 |---|---|
-| `test_connect_success` | `mt5.initialize` returns True → `connect()` returns True |
+| `test_connect_success` | `mt5.initialize` returns True, `mt5.account_info()` returns mock with `.name` → `connect()` returns True |
 | `test_connect_failure` | `mt5.initialize` returns False → `connect()` returns False, logs error |
 | `test_disconnect_calls_shutdown` | `disconnect()` calls `mt5.shutdown()` once |
 | `test_is_connected_true` | `mt5.account_info()` returns MagicMock → `is_connected()` is True |
-| `test_get_account_info_fields` | `mt5.account_info()` returns mock with balance/equity/currency → dict has correct keys |
+| `test_is_connected_false` | `mt5.account_info()` returns None → `is_connected()` is False |
+| `test_get_account_info_fields` | `mt5.account_info()` returns mock with balance=1000, equity=1010, currency="USD" → dict has all three correct keys/values |
+| `test_connect_with_retry_uses_config_delay_base` | patch `config.MT5_RECONNECT_DELAY_BASE=3`, `connect()` fails twice then succeeds; assert `time.sleep` called with `3**1=3` then `3**2=9` |
 
 ### 6b. `tests/test_mt5_data.py` — 5 tests
 
@@ -137,17 +152,28 @@ All tests patch `src.executor.orders.mt5`.
 
 | Test | What it checks |
 |---|---|
-| `test_place_order_dry_run` | `dry_run=True` → returns `{"success": True, "dry_run": True}`, `order_send` never called |
-| `test_place_order_buy_success` | `order_send` returns mock with `retcode=TRADE_RETCODE_DONE` → `success=True, ticket=<n>` |
-| `test_place_order_sell_success` | SELL uses `bid` price, same success path |
-| `test_place_order_rejected` | `order_send` returns mock with non-DONE retcode → `success=False` |
-| `test_place_order_no_tick` | `symbol_info_tick` returns None → `success=False, comment="no tick data"` |
+| `test_place_order_dry_run` | `dry_run=True` → returns `{"success": True, "ticket": 0, "price": 0.0, "dry_run": True}` (all 4 keys asserted), `order_send` never called |
+| `test_place_order_buy_success` | `order_send` returns mock with `retcode=mt5.TRADE_RETCODE_DONE`, `order=12345`, `price=1923.0` → `{"success": True, "ticket": 12345}` |
+| `test_place_order_sell_success` | SELL uses `tick.bid` price; same success path |
+| `test_place_order_rejected` | `order_send` returns mock with `retcode=10006`, `comment="rejected"` → `{"success": False, "retcode": 10006, "comment": "rejected"}` |
+| `test_place_order_no_tick` | `symbol_info_tick` returns None → `{"success": False, "comment": "no tick data"}` |
 
-**Total new tests: 15. Expected final count: 116 + 15 = 131 passed.**
+### 6d. `tests/test_main.py` additions — 2 tests
+
+Append to the existing `tests/test_main.py`:
+
+| Test | What it checks |
+|---|---|
+| `test_reconnect_attempted_when_disconnected_and_candles_empty` | Patch `fetch_candles` → empty DataFrame, `is_connected` → False, `connect_with_retry` → True; assert `connect_with_retry` called and `_reconcile_missed_closes` called |
+| `test_no_reconcile_when_reconnect_fails` | Patch `fetch_candles` → empty DataFrame, `is_connected` → False, `connect_with_retry` → False; assert `_reconcile_missed_closes` NOT called |
+
+**Total new tests: 7 + 5 + 5 + 2 = 19. Expected final count: 116 + 19 = 135 passed.**
 
 ---
 
 ## 7. `.env.example` additions
+
+Append the following block after the existing `# System` section in `.env.example`:
 
 ```
 # Phase 4: Production mode
@@ -160,7 +186,7 @@ MT5_RECONNECT_DELAY_BASE=2
 
 ## 8. Tag
 
-After all tests pass: `git tag v0.3.0-live`
+After all 135 tests pass: `git tag v0.3.0-live`
 
 ---
 
