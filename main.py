@@ -32,9 +32,12 @@ def connect_with_retry(retries: int = 3) -> bool:
     for attempt in range(retries):
         if connect():
             return True
-        wait = 2 ** (attempt + 1)   # 2s, 4s, 8s
-        logger.warning(f"MT5 connect attempt {attempt + 1} failed — retrying in {wait}s")
-        time.sleep(wait)
+        if attempt < retries - 1:
+            wait = config.MT5_RECONNECT_DELAY_BASE ** (attempt + 1)
+            logger.warning(f"MT5 connect attempt {attempt + 1} failed — retrying in {wait}s")
+            time.sleep(wait)
+        else:
+            logger.warning(f"MT5 connect attempt {attempt + 1} failed — no more retries")
     return False
 
 
