@@ -86,11 +86,11 @@ Run once before launching the bot. Validates that all required services and conf
 ### Checks (in order)
 
 1. **`.env` exists and required vars are set**  
-   Required: `MT5_LOGIN`, `MT5_PASSWORD`, `MT5_SERVER`, `DB_PASSWORD`  
-   Loads via `python-dotenv`. Reports missing keys individually.
+   Required vars: `MT5_LOGIN`, `MT5_PASSWORD`, `MT5_SERVER`, `DB_PASSWORD`.  
+   `preflight.py` loads `.env` directly via `python-dotenv` (`load_dotenv()` + `os.getenv()`). It does **NOT** import `src.config` for this check — `src/config.py` uses bare `os.environ["KEY"]` access which raises `KeyError` before any formatted output can be printed if vars are absent. Reports each missing key individually.
 
 2. **TimescaleDB reachable**  
-   Uses `psycopg2.connect()` with config credentials.  
+   Uses `psycopg2.connect()` with the credentials from `.env` (direct `os.getenv()` calls).  
    Verifies these tables exist: `candles`, `decisions`, `trades`, `system_state`.
 
 3. **MT5 terminal running and connectable**  
@@ -98,10 +98,10 @@ Run once before launching the bot. Validates that all required services and conf
    Reports account name and server on success.
 
 4. **DRY_RUN mode warning**  
-   Always reports current `DRY_RUN` value.  
+   Always reports current `DRY_RUN` value (read via `os.getenv("DRY_RUN", "false")`).  
    Prints a prominent warning if `DRY_RUN=false` (live trading mode).
 
-Checks 3 and 4 are skipped (with `[SKIP]`) if check 2 fails, to avoid misleading partial results.
+Checks 2, 3, and 4 are skipped (with `[SKIP]`) if check 1 fails. Check 3 and 4 are skipped if check 2 fails.
 
 ### Output format
 
@@ -128,9 +128,44 @@ Failure:
 
 ### Implementation notes
 
-- No new dependencies — uses existing `psycopg2`, `MetaTrader5`, `python-dotenv`, `src.config`
+- No new dependencies — uses existing `psycopg2`, `MetaTrader5`, `python-dotenv`
+- Does **not** import `src.config` — reads `.env` directly to avoid `KeyError` on missing vars
 - Does not start or modify any services
-- Single file, no imports from the rest of `src/` beyond `config.py`
+- Single file, standalone
+
+---
+
+## Schema change: `decisions` table
+
+The `signals` per-strategy breakdown (computed by `aggregator/scorer.py` as `AggregateResult.signals`) is currently held in memory only. To back the `SignalsPanel`, it must be persisted.
+
+**Change to `src/schema.sql`:** Add a `signals` column to the `decisions` table:
+```sql
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS signals JSONB;
+```
+
+**Stored format:**
+```json
+{
+  "ma_crossover": {"signal": "BUY", "confidence": 0.85},
+  "macd":         {"signal": "BUY", "confidence": 0.72},
+  "rsi":          {"signal": "NEUTRAL", "confidence": 0.50},
+  ...
+}
+```
+
+**Change to `src/logger/writer.py`:** `log_decision()` gains an optional `signals` parameter:
+```python
+def log_decision(
+    ...,
+    signals: dict | None = None,   # AggregateResult.signals
+):
+```
+Stored as JSON. Existing callers without this arg continue to work (defaults to `None`, inserts `NULL`).
+
+**Change to `main.py`:** Pass `agg.signals` when calling `log_decision()`.
+
+Existing calls in `tests/test_main.py` pass `signals=None` implicitly — no test breakage.
 
 ---
 
@@ -158,12 +193,24 @@ Allowed origins: `http://localhost:3000`, `http://localhost:3001`
 |--------|------|-------------|-------------|
 | `GET` | `/api/candles?limit=200` | MT5 bridge (`fetch_candles()`) | Last N M1 OHLCV candles for price chart |
 | `GET` | `/api/account` | MT5 bridge (`get_account_info()`, `get_positions()`) | Balance, equity, currency, open positions |
-| `GET` | `/api/signals` | TimescaleDB decisions (latest row) + `is_connected()` | Regime, buy/sell scores, individual strategy signals |
+| `GET` | `/api/signals` | TimescaleDB decisions (latest row, including `signals` JSONB) + `is_connected()` | Regime, buy/sell scores, individual strategy signals |
 | `GET` | `/api/decisions?limit=50` | TimescaleDB `decisions` table | Recent decision log |
 | `GET` | `/api/trades?limit=50` | TimescaleDB `trades` table | Recent closed trades |
 | `GET` | `/api/stats` | TimescaleDB `trades` table | Win rate, total P&L, avg win, avg loss, P&L curve |
 | `GET` | `/api/status` | TimescaleDB `system_state` + config | Bot alive flag, DRY_RUN, kill switch state |
 | `POST` | `/api/killswitch` | TimescaleDB `system_state` | Body: `{"active": bool}` — toggle kill switch |
+
+### MT5 connection lifecycle
+
+`app.py` wires MT5 initialization into FastAPI lifecycle events:
+```python
+@app.on_event("startup")
+def startup(): connect()   # mt5.initialize()
+
+@app.on_event("shutdown")
+def shutdown(): disconnect()  # mt5.shutdown()
+```
+This ensures MT5 is initialized when the API process starts and cleanly shut down on exit. If `connect()` fails on startup, the API still starts — MT5-backed endpoints return `{"error": "MT5 disconnected", "data": null}` gracefully.
 
 ### Bot-alive detection
 
@@ -179,6 +226,17 @@ If MT5 is disconnected, MT5-backed endpoints return:
 If the DB is unavailable, DB-backed endpoints return HTTP 503:
 ```json
 {"error": "Database unavailable"}
+```
+
+If the `decisions` table is empty (bot has not run yet), `/api/signals` returns HTTP 200:
+```json
+{"signals": null, "regime": null, "buy_score": null, "sell_score": null, "connected": true, "message": "No data yet"}
+```
+The `SignalsPanel` renders an empty state ("Waiting for first candle…") when `signals` is null.
+
+If the `trades` table is empty, `/api/stats` returns HTTP 200:
+```json
+{"win_rate": null, "total_pnl": 0.0, "avg_win": null, "avg_loss": null, "pnl_curve": []}
 ```
 
 ### File layout
@@ -205,7 +263,10 @@ src/api/
 - Candles endpoint returns `{"error": "MT5 disconnected", "data": null}` when disconnected
 - Kill switch POST writes to `system_state` table
 - Stats endpoint computes correct win rate and cumulative P&L
+- Stats endpoint returns zero-row empty state `{"win_rate": null, "total_pnl": 0.0, ...}` when trades table is empty
 - Status endpoint reports bot alive/offline correctly
+- Signals endpoint returns `{"signals": null, "message": "No data yet"}` when decisions table is empty
+- DB unavailable → HTTP 503 on decisions/trades/stats/status endpoints
 
 ---
 
@@ -327,7 +388,7 @@ Kill switch (user action)
 - FastAPI starts on port 8000, all 8 endpoints return valid JSON
 - Next.js dashboard loads at `http://localhost:3000`, all 7 panels render with live data
 - Kill switch toggle from dashboard is reflected in the bot within one loop cycle
-- All 135 existing tests continue to pass
+- All 135 existing tests continue to pass (plus any new tests for `log_decision` signals parameter)
 - ~15 new API tests pass
 
 ---
