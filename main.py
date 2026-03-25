@@ -89,6 +89,15 @@ def run_loop():
         try:
             candles = fetch_candles(200)
             if candles.empty:
+                if not is_connected():
+                    logger.warning("MT5 connection lost — attempting reconnect")
+                    if connect_with_retry(config.MT5_RECONNECT_RETRIES):
+                        logger.info("Reconnected — reconciling missed closes")
+                        _reconcile_missed_closes()
+                    else:
+                        logger.error("Reconnect failed — will retry next candle")
+                # If is_connected() is True but candles are still empty (market closed,
+                # weekend, holiday), the reconnect block is skipped — intentional.
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
 
@@ -166,7 +175,7 @@ def run_loop():
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
 
-            order = place_order(direction, risk.lot_size, sl, tp)
+            order = place_order(direction, risk.lot_size, sl, tp, dry_run=config.DRY_RUN)
             log_decision(
                 regime, agg.buy_score, agg.sell_score, trigger_fired=True,
                 ai_action=direction, ai_confidence=confidence,
@@ -188,9 +197,11 @@ def run_loop():
 
 def main():
     logger.info("OpenGold starting…")
-    if not connect_with_retry():
+    if not connect_with_retry(config.MT5_RECONNECT_RETRIES):
         logger.critical("Cannot connect to MT5 after retries. Exiting.")
         return
+    if config.DRY_RUN:
+        logger.warning("*** DRY_RUN MODE — orders will NOT be sent to MT5 ***")
     run_loop()
 
 

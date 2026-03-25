@@ -74,3 +74,44 @@ def test_decide_called_when_trigger_fires():
     mock_decide.assert_called_once_with("test prompt")
     assert mock_log.call_args.kwargs.get("trigger_fired") is True
     assert mock_log.call_args.kwargs.get("ai_action") == "SKIP"
+
+
+def test_reconnect_attempted_when_disconnected_and_candles_empty():
+    """When candles empty and MT5 disconnected, connect_with_retry and reconcile are called."""
+    from main import run_loop
+    import pandas as pd
+    with (
+        patch("main.fetch_candles", return_value=pd.DataFrame()),
+        patch("main.is_connected", return_value=False),
+        patch("main.connect_with_retry", return_value=True) as mock_retry,
+        patch("main._reconcile_missed_closes") as mock_reconcile,
+        patch("main.time") as mock_time,
+    ):
+        mock_time.sleep.side_effect = StopIteration
+        try:
+            run_loop()
+        except StopIteration:
+            pass
+
+    mock_retry.assert_called_once()
+    mock_reconcile.assert_called_once()
+
+
+def test_no_reconcile_when_reconnect_fails():
+    """When reconnect fails, _reconcile_missed_closes is NOT called."""
+    from main import run_loop
+    import pandas as pd
+    with (
+        patch("main.fetch_candles", return_value=pd.DataFrame()),
+        patch("main.is_connected", return_value=False),
+        patch("main.connect_with_retry", return_value=False),
+        patch("main._reconcile_missed_closes") as mock_reconcile,
+        patch("main.time") as mock_time,
+    ):
+        mock_time.sleep.side_effect = StopIteration
+        try:
+            run_loop()
+        except StopIteration:
+            pass
+
+    mock_reconcile.assert_not_called()
