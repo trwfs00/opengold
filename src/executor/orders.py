@@ -5,8 +5,11 @@ from src.mt5_bridge.data import SYMBOL
 logger = logging.getLogger(__name__)
 
 
-def place_order(direction: str, lot_size: float, sl: float, tp: float) -> dict:
+def place_order(direction: str, lot_size: float, sl: float, tp: float, dry_run: bool = False) -> dict:
     """Place a market order. Returns dict with success bool and ticket/error."""
+    if dry_run:
+        logger.info(f"DRY_RUN order: {direction} {lot_size} lots sl={sl} tp={tp}")
+        return {"success": True, "ticket": 0, "price": 0.0, "dry_run": True}
     order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
     tick = mt5.symbol_info_tick(SYMBOL)
     if tick is None:
