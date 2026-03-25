@@ -1,0 +1,133 @@
+import logging
+from datetime import datetime, timezone
+from src.db import execute
+
+logger = logging.getLogger(__name__)
+
+
+def log_decision(
+    regime: str,
+    buy_score: float,
+    sell_score: float,
+    trigger_fired: bool,
+    ai_action: str | None = None,
+    ai_confidence: float | None = None,
+    ai_sl: float | None = None,
+    ai_tp: float | None = None,
+    risk_block_reason: str | None = None,
+):
+    try:
+        execute(
+            """INSERT INTO decisions
+               (time, regime, buy_score, sell_score, trigger_fired,
+                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (
+                datetime.now(timezone.utc), regime, buy_score, sell_score, trigger_fired,
+                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason,
+            ),
+        )
+    except Exception as e:
+        logger.error(f"log_decision failed: {e}")
+
+
+def log_trade(
+    open_time,
+    close_time,
+    direction: str,
+    lot_size: float,
+    open_price: float,
+    close_price: float,
+    sl: float,
+    tp: float,
+    pnl: float,
+):
+    result = "WIN" if pnl > 1.0 else "LOSS" if pnl < -1.0 else "BREAKEVEN"
+    try:
+        execute(
+            """INSERT INTO trades
+               (open_time, close_time, direction, lot_size,
+                open_price, close_price, sl, tp, pnl, result)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (open_time, close_time, direction, lot_size,
+             open_price, close_price, sl, tp, pnl, result),
+        )
+    except Exception as e:
+        logger.error(f"log_trade failed: {e}")
+
+
+def check_and_log_trade_no_duplicate(
+    open_time,
+    close_time,
+    direction: str,
+    lot_size: float,
+    open_price: float,
+    close_price: float,
+    sl: float,
+    tp: float,
+    pnl: float,
+):
+    """Log trade only if no matching row exists (dedup by open_time+direction+open_price)."""
+    existing = execute(
+        "SELECT 1 FROM trades WHERE open_time=%s AND direction=%s AND open_price=%s",
+        (open_time, direction, open_price),
+        fetch=True,
+    )
+    if not existing:
+        log_trade(open_time, close_time, direction, lot_size, open_price, close_price, sl, tp, pnl)
+
+
+def get_kill_switch_state() -> bool:
+    rows = execute(
+        "SELECT key, value FROM system_state WHERE key IN ('kill_switch_active','kill_switch_date')",
+        fetch=True,
+    )
+    state = {r[0]: r[1] for r in rows} if rows else {}
+    active = state.get("kill_switch_active", "false") == "true"
+    ks_date = state.get("kill_switch_date", "")
+    today_utc = datetime.now(timezone.utc).date().isoformat()
+    if active and ks_date != today_utc:
+        # Auto-reset at UTC midnight
+        set_kill_switch(False)
+        return False
+    return active
+
+
+def set_kill_switch(active: bool):
+    value = "true" if active else "false"
+    today_utc = datetime.now(timezone.utc).date().isoformat()
+    execute(
+        "UPDATE system_state SET value=%s, updated_at=NOW() WHERE key='kill_switch_active'",
+        (value,),
+    )
+    execute(
+        "UPDATE system_state SET value=%s, updated_at=NOW() WHERE key='kill_switch_date'",
+        (today_utc,),
+    )
+
+
+def get_daily_start_balance() -> tuple[float, str]:
+    """Returns (balance, date_utc_iso) stored for the current day's baseline."""
+    rows = execute(
+        "SELECT key, value FROM system_state WHERE key IN ('daily_start_balance','daily_start_date')",
+        fetch=True,
+    )
+    state = {r[0]: r[1] for r in rows} if rows else {}
+    try:
+        balance = float(state.get("daily_start_balance", "0"))
+    except ValueError:
+        balance = 0.0
+    date_str = state.get("daily_start_date", "")
+    return balance, date_str
+
+
+def set_daily_start_balance(balance: float):
+    today_utc = datetime.now(timezone.utc).date().isoformat()
+    execute(
+        "UPDATE system_state SET value=%s, updated_at=NOW() WHERE key='daily_start_balance'",
+        (str(balance),),
+    )
+    execute(
+        "UPDATE system_state SET value=%s, updated_at=NOW() WHERE key='daily_start_date'",
+        (today_utc,),
+    )
