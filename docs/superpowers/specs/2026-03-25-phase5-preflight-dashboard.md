@@ -121,7 +121,7 @@ Failure:
 [OK]  .env loaded
 [FAIL] TimescaleDB: connection refused (localhost:5432) — is docker-compose up?
 [SKIP] MT5 check skipped (requires DB)
-[SKIP] DRY_RUN check skipped
+[WARN] DRY_RUN=false — LIVE MODE, real orders will be placed
 
 1 check failed. Fix the above before launching.
 ```
@@ -255,9 +255,20 @@ If the `decisions` table is empty (bot has not run yet), `/api/signals` returns 
 {"signals": null, "regime": null, "buy_score": null, "sell_score": null, "connected": true, "message": "No data yet"}
 ```
 The `SignalsPanel` renders an empty state ("Waiting for first candle…") when `signals` is null.
+
+If the `trades` table is empty, `/api/stats` returns HTTP 200:
 ```json
 {"win_rate": null, "total_pnl": 0.0, "avg_win": null, "avg_loss": null, "pnl_curve": []}
 ```
+
+When populated, `pnl_curve` items use Unix epoch seconds for `time` (required by `lightweight-charts` `UTCTimestamp`):
+```json
+"pnl_curve": [
+  {"time": 1742896800, "value": 42.0},
+  {"time": 1742897460, "value": 66.0}
+]
+```
+`time` is `close_time` as a Unix integer (seconds). `value` is running cumulative P&L, computed as a windowed sum of `trades.pnl` ordered by `close_time`.
 
 ### File layout
 
