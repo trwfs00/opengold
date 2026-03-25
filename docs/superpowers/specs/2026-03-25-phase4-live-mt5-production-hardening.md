@@ -14,7 +14,7 @@ Phase 4 makes OpenGold production-ready on the live demo account. It adds:
 1. **DRY_RUN mode** — all pipeline logic runs against real MT5 data, but `place_order` logs instead of sending to the broker. A single env-var flip enables live trading.
 2. **In-loop MT5 reconnect** — when the connection drops mid-run, the bot attempts bounded reconnect with exponential backoff before resuming, rather than crashing.
 3. **Configurable reconnect parameters** — retries and base delay are env-var controlled.
-4. **Unit tests for MT5 bridge and executor** — mock-based, runs without a live terminal, reaching 131 total tests.
+4. **Unit tests for MT5 bridge and executor** — mock-based, runs without a live terminal, reaching 135 total tests.
 
 ---
 
