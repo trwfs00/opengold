@@ -5,10 +5,10 @@ from datetime import datetime, timedelta, timezone
 from src import config
 from src.mt5_bridge.connection import connect, disconnect, is_connected, get_account_info
 from src.mt5_bridge.data import fetch_candles, get_last_candle_time, get_positions, get_history_deals
-from src.regime.classifier import classify
+from src.regime.classifier import classify as classify_regime
 from src.strategies import run_all
-from src.aggregator.scorer import aggregate
-from src.trigger.gate import should_trigger, get_direction
+from src.aggregator.scorer import aggregate as compute_agg
+from src.trigger.gate import should_trigger
 from src.risk.engine import validate
 from src.executor.orders import place_order, sync_positions
 from src.logger.writer import (
@@ -17,6 +17,9 @@ from src.logger.writer import (
     get_daily_start_balance, set_daily_start_balance,
     check_and_log_trade_no_duplicate,
 )
+from src.journal.reader import get_journal_context
+from src.ai_layer.prompt import build_prompt
+from src.ai_layer.client import decide
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,79 +68,43 @@ def _reconcile_missed_closes():
             )
 
 
-def main():
-    logger.info("OpenGold starting…")
-    if not connect_with_retry():
-        logger.critical("Cannot connect to MT5 after retries. Exiting.")
-        return
 
+def get_open_trades() -> int:
+    """Return the number of currently open trades."""
+    return len(get_positions())
+
+
+def kill_switch_active() -> bool:
+    """Return the current kill-switch state."""
+    return get_kill_switch_state()
+
+
+def run_loop():
+    """Core strategy loop. Polls for new candles and makes trading decisions."""
     last_candle_time = None
-    position_snapshot: list[dict] = []
-
     while True:
         try:
-            # ── Reconnect check ───────────────────────────────────────────
-            if not is_connected():
-                logger.warning("MT5 disconnected — reconnecting…")
-                if not connect_with_retry():
-                    logger.error("Reconnect failed. Pausing 60s.")
-                    time.sleep(60)
-                    continue
-                _reconcile_missed_closes()
-
-            # ── Poll for new candle ───────────────────────────────────────
-            current_time = get_last_candle_time()
-            if current_time is None or current_time == last_candle_time:
-                time.sleep(config.POLL_INTERVAL_SECONDS)
-                continue
-
-            last_candle_time = current_time
             candles = fetch_candles(200)
             if candles.empty:
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
 
-            # ── Account state ─────────────────────────────────────────────
-            account = get_account_info()
-            balance = account.get("balance", 0.0)
-            equity = account.get("equity", 0.0)
-            _check_daily_reset(balance)
+            new_time = candles["time"].iloc[-1]
+            if new_time == last_candle_time:
+                time.sleep(config.POLL_INTERVAL_SECONDS)
+                continue
+            last_candle_time = new_time
 
-            # ── Drawdown kill switch ──────────────────────────────────────
-            kill_switch = get_kill_switch_state()
-            daily_start, _ = get_daily_start_balance()
-            if daily_start > 0 and equity < daily_start * (1 - config.DAILY_DRAWDOWN_LIMIT):
-                if not kill_switch:
-                    logger.warning(
-                        f"KILL SWITCH ACTIVATED: equity={equity:.2f} start={daily_start:.2f}"
-                    )
-                    set_kill_switch(True)
-                    kill_switch = True
+            open_trades = get_open_trades()
+            kill = kill_switch_active()
 
-            # ── Position sync (detect closed trades) ─────────────────────
-            closed_positions, position_snapshot = sync_positions(position_snapshot, get_positions)
-            for closed in closed_positions:
-                log_trade(
-                    open_time=datetime.now(timezone.utc),
-                    close_time=datetime.now(timezone.utc),
-                    direction=closed["direction"],
-                    lot_size=closed["volume"],
-                    open_price=closed["open_price"],
-                    close_price=candles["close"].iloc[-1],
-                    sl=closed["sl"],
-                    tp=closed["tp"],
-                    pnl=0.0,   # placeholder — real PnL reconciled via MT5 history in Phase 3
-                )
-
-            # ── Strategy pipeline ─────────────────────────────────────────
-            regime = classify(candles)
+            regime = classify_regime(candles)
             signals = run_all(candles, regime)
-            agg = aggregate(signals, regime)
-            open_trades = len(position_snapshot)
-            triggered = should_trigger(agg, open_trades, kill_switch)
+            agg = compute_agg(signals, regime)
+            triggered = should_trigger(agg, open_trades, kill)
 
             logger.info(
-                f"Candle {current_time} | regime={regime} | "
+                f"Candle {new_time} | regime={regime} | "
                 f"buy={agg.buy_score:.2f} sell={agg.sell_score:.2f} | "
                 f"trigger={'YES' if triggered else 'NO'} | open_trades={open_trades}"
             )
@@ -147,19 +114,33 @@ def main():
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
 
-            # ── Phase 1: direction from scores, fixed confidence, ATR-based SL/TP ──
-            direction = get_direction(agg)
+            # ── Phase 3: journal → AI → risk ─────────────────────────────────────
             price = candles["close"].iloc[-1]
-            atr_range = (
-                candles["high"].rolling(14).max() - candles["low"].rolling(14).min()
-            ).iloc[-1]
-            if direction == "BUY":
-                sl = price - atr_range * 1.5
-                tp = price + atr_range * 2.0
-            else:
-                sl = price + atr_range * 1.5
-                tp = price - atr_range * 2.0
-            confidence = 0.75   # fixed in Phase 1; replaced by AI confidence in Phase 3
+            atr = (candles["high"].rolling(14).max() - candles["low"].rolling(14).min()).iloc[-1]
+            journal = get_journal_context()
+            ai_prompt = build_prompt(
+                journal=journal,
+                regime=regime,
+                buy_score=agg.buy_score,
+                sell_score=agg.sell_score,
+                price=price,
+                atr=atr,
+            )
+            ai = decide(ai_prompt)
+            if ai.action == "SKIP" or ai.error:
+                log_decision(
+                    regime, agg.buy_score, agg.sell_score, trigger_fired=True,
+                    ai_action="SKIP", risk_block_reason=ai.error or "AI_SKIP",
+                )
+                time.sleep(config.POLL_INTERVAL_SECONDS)
+                continue
+            direction = ai.action
+            confidence = ai.confidence
+            sl = ai.sl
+            tp = ai.tp
+
+            account = get_account_info()
+            balance = account.get("balance", 0.0)
 
             risk = validate(
                 action=direction,
@@ -169,7 +150,7 @@ def main():
                 entry=price,
                 balance=balance,
                 open_trades=open_trades,
-                kill_switch=kill_switch,
+                kill_switch=kill,
             )
 
             if not risk.approved:
@@ -189,6 +170,7 @@ def main():
                 ai_sl=sl, ai_tp=tp,
                 risk_block_reason=None if order["success"] else "ORDER_REJECTED",
             )
+            time.sleep(config.POLL_INTERVAL_SECONDS)
 
         except KeyboardInterrupt:
             logger.info("Shutting down on KeyboardInterrupt…")
@@ -199,6 +181,14 @@ def main():
 
     disconnect()
     logger.info("OpenGold stopped.")
+
+
+def main():
+    logger.info("OpenGold starting…")
+    if not connect_with_retry():
+        logger.critical("Cannot connect to MT5 after retries. Exiting.")
+        return
+    run_loop()
 
 
 if __name__ == "__main__":
