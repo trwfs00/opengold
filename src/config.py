@@ -15,6 +15,14 @@ DB_NAME = os.getenv("DB_NAME", "opengold")
 DB_USER = os.getenv("DB_USER", "opengold")
 DB_PASSWORD = os.environ["DB_PASSWORD"]
 
+# AI
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+CLAUDE_PRIMARY_MODEL = os.getenv("CLAUDE_PRIMARY_MODEL", "claude-3-5-haiku-20241022")
+CLAUDE_FALLBACK_MODEL = os.getenv("CLAUDE_FALLBACK_MODEL", "claude-3-5-sonnet-20241022")
+if not ANTHROPIC_API_KEY:
+    import logging as _logging
+    _logging.getLogger(__name__).warning("ANTHROPIC_API_KEY not set — AI calls will fail at runtime")
+
 # Risk
 RISK_PER_TRADE = float(os.getenv("RISK_PER_TRADE", "0.01"))
 MAX_CONCURRENT_TRADES = int(os.getenv("MAX_CONCURRENT_TRADES", "3"))
