@@ -101,7 +101,7 @@ Run once before launching the bot. Validates that all required services and conf
    Always reports current `DRY_RUN` value (read via `os.getenv("DRY_RUN", "false")`).  
    Prints a prominent warning if `DRY_RUN=false` (live trading mode).
 
-Checks 2, 3, and 4 are skipped (with `[SKIP]`) if check 1 fails. Check 3 and 4 are skipped if check 2 fails.
+Checks 2, 3, and 4 are skipped (with `[SKIP]`) if check 1 fails. Check 3 is skipped if check 2 fails. Check 4 (DRY_RUN) runs independently — it reads only `os.getenv("DRY_RUN", "false")` with no DB dependency, so it runs even when the DB is down. This ensures a live-mode warning is never suppressed by a DB failure.
 
 ### Output format
 
@@ -139,9 +139,22 @@ Failure:
 
 The `signals` per-strategy breakdown (computed by `aggregator/scorer.py` as `AggregateResult.signals`) is currently held in memory only. To back the `SignalsPanel`, it must be persisted.
 
-**Change to `src/schema.sql`:** Add a `signals` column to the `decisions` table:
+**Change to `src/schema.sql`:** Update the `CREATE TABLE decisions` definition to include the new column, and add a migration comment for existing deployments:
 ```sql
-ALTER TABLE decisions ADD COLUMN IF NOT EXISTS signals JSONB;
+CREATE TABLE IF NOT EXISTS decisions (
+    time              TIMESTAMPTZ NOT NULL,
+    regime            TEXT,
+    buy_score         FLOAT8,
+    sell_score        FLOAT8,
+    trigger_fired     BOOLEAN,
+    ai_action         TEXT,
+    ai_confidence     FLOAT8,
+    ai_sl             FLOAT8,
+    ai_tp             FLOAT8,
+    risk_block_reason TEXT,
+    signals           JSONB        -- per-strategy breakdown (added Phase 5)
+);
+-- For existing databases: ALTER TABLE decisions ADD COLUMN IF NOT EXISTS signals JSONB;
 ```
 
 **Stored format:**
@@ -161,9 +174,13 @@ def log_decision(
     signals: dict | None = None,   # AggregateResult.signals
 ):
 ```
-Stored as JSON. Existing callers without this arg continue to work (defaults to `None`, inserts `NULL`).
+Before inserting, serialize the dict with `json.dumps(signals)` (or pass `None`). `psycopg2` cannot adapt a raw Python `dict` to `JSONB` directly — `json.dumps()` produces a string which is accepted by the `JSONB` column.
 
-**Change to `main.py`:** Pass `agg.signals` when calling `log_decision()`.
+**Change to `main.py`:** Pass `agg.signals` at **all 4** `log_decision()` call sites:
+1. Trigger not fired (line ~130): `log_decision(regime, ..., trigger_fired=False, signals=agg.signals)`
+2. AI returned SKIP (line ~145): `log_decision(regime, ..., ai_action="SKIP", signals=agg.signals)`
+3. Risk blocked (line ~170): `log_decision(regime, ..., risk_block_reason=risk.block_reason, signals=agg.signals)`
+4. Order placed/rejected (line ~179): `log_decision(regime, ..., signals=agg.signals)`
 
 Existing calls in `tests/test_main.py` pass `signals=None` implicitly — no test breakage.
 
@@ -202,15 +219,20 @@ Allowed origins: `http://localhost:3000`, `http://localhost:3001`
 
 ### MT5 connection lifecycle
 
-`app.py` wires MT5 initialization into FastAPI lifecycle events:
+`app.py` wires MT5 initialization into FastAPI's `lifespan` context manager (the `@app.on_event()` API is deprecated since FastAPI 0.95; `requirements.txt` pins `fastapi>=0.110.0`):
 ```python
-@app.on_event("startup")
-def startup(): connect()   # mt5.initialize()
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
-@app.on_event("shutdown")
-def shutdown(): disconnect()  # mt5.shutdown()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    connect()    # mt5.initialize()
+    yield
+    disconnect() # mt5.shutdown()
+
+app = FastAPI(title="OpenGold API", lifespan=lifespan)
 ```
-This ensures MT5 is initialized when the API process starts and cleanly shut down on exit. If `connect()` fails on startup, the API still starts — MT5-backed endpoints return `{"error": "MT5 disconnected", "data": null}` gracefully.
+If `connect()` fails on startup, the API still starts — MT5-backed endpoints return `{"error": "MT5 disconnected", "data": null}` gracefully.
 
 ### Bot-alive detection
 
@@ -233,8 +255,6 @@ If the `decisions` table is empty (bot has not run yet), `/api/signals` returns 
 {"signals": null, "regime": null, "buy_score": null, "sell_score": null, "connected": true, "message": "No data yet"}
 ```
 The `SignalsPanel` renders an empty state ("Waiting for first candle…") when `signals` is null.
-
-If the `trades` table is empty, `/api/stats` returns HTTP 200:
 ```json
 {"win_rate": null, "total_pnl": 0.0, "avg_win": null, "avg_loss": null, "pnl_curve": []}
 ```
@@ -265,7 +285,7 @@ src/api/
 - Stats endpoint computes correct win rate and cumulative P&L
 - Stats endpoint returns zero-row empty state `{"win_rate": null, "total_pnl": 0.0, ...}` when trades table is empty
 - Status endpoint reports bot alive/offline correctly
-- Signals endpoint returns `{"signals": null, "message": "No data yet"}` when decisions table is empty
+- Signals endpoint returns full 6-key shape `{"signals": null, "regime": null, "buy_score": null, "sell_score": null, "connected": true, "message": "No data yet"}` when decisions table is empty
 - DB unavailable → HTTP 503 on decisions/trades/stats/status endpoints
 
 ---
