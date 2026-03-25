@@ -53,3 +53,7 @@ DB_MAX_RETRY_DURATION_SECONDS = int(os.getenv("DB_MAX_RETRY_DURATION_SECONDS", "
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 MT5_RECONNECT_RETRIES = int(os.getenv("MT5_RECONNECT_RETRIES", "3"))
 MT5_RECONNECT_DELAY_BASE = int(os.getenv("MT5_RECONNECT_DELAY_BASE", "2"))
+
+# Dashboard API
+DASHBOARD_API_HOST = os.getenv("DASHBOARD_API_HOST", "127.0.0.1")
+DASHBOARD_API_PORT = int(os.getenv("DASHBOARD_API_PORT", "8000"))
