@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timezone
 from src.db import execute
@@ -15,16 +16,18 @@ def log_decision(
     ai_sl: float | None = None,
     ai_tp: float | None = None,
     risk_block_reason: str | None = None,
+    signals: dict | None = None,
 ):
     try:
         execute(
             """INSERT INTO decisions
                (time, regime, buy_score, sell_score, trigger_fired,
-                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason, signals)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 datetime.now(timezone.utc), regime, buy_score, sell_score, trigger_fired,
                 ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason,
+                json.dumps(signals) if signals is not None else None,
             ),
         )
     except Exception as e:

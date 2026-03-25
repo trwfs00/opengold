@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS decisions (
     ai_confidence     FLOAT8,
     ai_sl             FLOAT8,
     ai_tp             FLOAT8,
-    risk_block_reason TEXT
+    risk_block_reason TEXT,
+    signals           JSONB        -- per-strategy breakdown (added Phase 5)
 );
+-- For existing databases: ALTER TABLE decisions ADD COLUMN IF NOT EXISTS signals JSONB;
 SELECT create_hypertable('decisions', 'time', if_not_exists => TRUE);
 
 CREATE TABLE IF NOT EXISTS trades (

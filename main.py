@@ -122,7 +122,7 @@ def run_loop():
             )
 
             if not triggered:
-                log_decision(regime, agg.buy_score, agg.sell_score, trigger_fired=False)
+                log_decision(regime, agg.buy_score, agg.sell_score, trigger_fired=False, signals=agg.signals)
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
 
@@ -143,6 +143,7 @@ def run_loop():
                 log_decision(
                     regime, agg.buy_score, agg.sell_score, trigger_fired=True,
                     ai_action="SKIP", risk_block_reason=ai.error or "AI_SKIP",
+                    signals=agg.signals,
                 )
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
@@ -171,6 +172,7 @@ def run_loop():
                     regime, agg.buy_score, agg.sell_score, trigger_fired=True,
                     ai_action=direction, ai_confidence=confidence,
                     ai_sl=sl, ai_tp=tp, risk_block_reason=risk.block_reason,
+                    signals=agg.signals,
                 )
                 time.sleep(config.POLL_INTERVAL_SECONDS)
                 continue
@@ -181,6 +183,7 @@ def run_loop():
                 ai_action=direction, ai_confidence=confidence,
                 ai_sl=sl, ai_tp=tp,
                 risk_block_reason=None if order["success"] else "ORDER_REJECTED",
+                signals=agg.signals,
             )
             time.sleep(config.POLL_INTERVAL_SECONDS)
 
