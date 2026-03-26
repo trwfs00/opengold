@@ -3,9 +3,11 @@ import pandas as pd
 from datetime import datetime, timezone
 import logging
 
+from src import config
+
 logger = logging.getLogger(__name__)
-SYMBOL = "XAUUSD"
-TIMEFRAME = mt5.TIMEFRAME_M1
+SYMBOL = config.SYMBOL
+TIMEFRAME = getattr(mt5, f"TIMEFRAME_{config.TIMEFRAME}", mt5.TIMEFRAME_M1)
 
 
 def fetch_candles(count: int = 200) -> pd.DataFrame:
@@ -33,11 +35,15 @@ def get_positions() -> list[dict]:
     return [
         {
             "ticket": p.ticket,
+            "symbol": p.symbol,
             "direction": "BUY" if p.type == mt5.ORDER_TYPE_BUY else "SELL",
-            "volume": p.volume,
+            "lots": p.volume,
             "open_price": p.price_open,
+            "current_price": p.price_current,
+            "unrealized_pnl": p.profit,
             "sl": p.sl,
             "tp": p.tp,
+            "open_time": pd.to_datetime(p.time, unit="s", utc=True).isoformat(),
         }
         for p in positions
     ]
