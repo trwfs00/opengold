@@ -22,7 +22,7 @@ def get_signals():
             "connected": connected, "message": "No data yet",
         }
     regime, buy_score, sell_score, signals_raw = rows[0]
-    signals = json.loads(signals_raw) if signals_raw else None
+    signals = signals_raw if isinstance(signals_raw, dict) else (json.loads(signals_raw) if signals_raw else None)
     return {
         "regime": regime, "buy_score": buy_score, "sell_score": sell_score,
         "signals": signals, "connected": connected,

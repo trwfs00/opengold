@@ -14,11 +14,13 @@ def get_stats():
     except Exception:
         return {"error": "Database unavailable"}
 
+    empty = {
+        "win_rate": None, "total_pnl": 0.0, "avg_win": None, "avg_loss": None,
+        "pnl_curve": [], "win_count": 0, "loss_count": 0, "total_trades": 0,
+        "current_streak": 0, "avg_rr": None, "last_15": [],
+    }
     if not rows:
-        return {
-            "win_rate": None, "total_pnl": 0.0,
-            "avg_win": None, "avg_loss": None, "pnl_curve": [],
-        }
+        return empty
 
     wins = [r[1] for r in rows if r[2] == "WIN"]
     losses = [r[1] for r in rows if r[2] == "LOSS"]
@@ -27,6 +29,22 @@ def get_stats():
     total_pnl = sum(r[1] for r in rows)
     avg_win = sum(wins) / len(wins) if wins else None
     avg_loss = sum(losses) / len(losses) if losses else None
+    avg_rr = (avg_win / abs(avg_loss)) if avg_win and avg_loss and avg_loss != 0 else None
+
+    # Current consecutive streak (WIN/LOSS only, ignore BREAKEVEN)
+    wl_rows = [r[2] for r in rows if r[2] in ("WIN", "LOSS")]
+    current_streak = 0
+    if wl_rows:
+        last_result = wl_rows[-1]
+        for result in reversed(wl_rows):
+            if result == last_result:
+                current_streak += 1
+            else:
+                break
+        if last_result == "LOSS":
+            current_streak = -current_streak
+
+    last_15 = [r[2] for r in rows[-15:]]
 
     cumulative = 0.0
     pnl_curve = []
@@ -40,4 +58,10 @@ def get_stats():
         "avg_win": round(avg_win, 2) if avg_win is not None else None,
         "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
         "pnl_curve": pnl_curve,
+        "win_count": len(wins),
+        "loss_count": len(losses),
+        "total_trades": total,
+        "current_streak": current_streak,
+        "avg_rr": round(avg_rr, 2) if avg_rr is not None else None,
+        "last_15": last_15,
     }
