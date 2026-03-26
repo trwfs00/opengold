@@ -83,3 +83,190 @@ def test_lot_sizing_correct():
     )
     assert result.approved
     assert abs(result.lot_size - 0.10) < 0.01
+
+
+from src import config as _config
+
+
+# ── Forex (EURUSD) tests ──────────────────────────────────────────────────────
+
+def test_forex_valid_buy_passes(monkeypatch):
+    """EURUSD buy with 4-pip SL and 5-pip TP should be approved."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # entry=1.08500, sl=1.08460 (4 pips), tp=1.08550 (5 pips)
+    # RR check: 5 >= SL_PIPS_MIN(3) * MIN_RR_RATIO(1.3) = 3.9 ✓
+    result = validate(
+        action="BUY", confidence=0.8,
+        sl=1.08460, tp=1.08550,
+        entry=1.08500,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert result.approved
+    assert result.lot_size > 0
+
+
+def test_forex_lot_size_correct(monkeypatch):
+    """Forex lot = risk_amount / (sl_pips * pip_value_per_lot)."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # risk=$100 (1% of $10000), SL=4 pips, PipValue=$10 → lot=100/(4*10)=2.50
+    result = validate(
+        action="BUY", confidence=0.8,
+        sl=1.08460, tp=1.08550,
+        entry=1.08500,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert result.lot_size == 2.50
+
+
+def test_forex_sl_too_tight_blocked(monkeypatch):
+    """SL < SL_PIPS_MIN should return INVALID_SL for Forex."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # SL = 2 pips (below SL_PIPS_MIN=3)
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1.08480, tp=1.08550,   # 2 pips SL, 7 pips TP
+        entry=1.08500,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert not result.approved
+    assert result.block_reason == "INVALID_SL"
+
+
+def test_forex_sl_too_wide_blocked(monkeypatch):
+    """SL > SL_PIPS_MAX should return INVALID_SL for Forex."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # SL = 8 pips (above SL_PIPS_MAX=5)
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1.08420, tp=1.08600,   # 8 pips SL
+        entry=1.08500,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert not result.approved
+    assert result.block_reason == "INVALID_SL"
+
+
+def test_forex_tp_fails_rr_ratio(monkeypatch):
+    """TP that doesn't satisfy MIN_RR_RATIO should return INVALID_TP for Forex."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # SL=4 pips, TP=3 pips → tp_pips(3) < SL_PIPS_MIN(3)*MIN_RR_RATIO(1.3)=3.9 → INVALID_TP
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1.08460, tp=1.08530,   # 4-pip SL, 3-pip TP
+        entry=1.08500,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert not result.approved
+    assert result.block_reason == "INVALID_TP"
+
+
+def test_daily_trade_limit_blocks(monkeypatch):
+    """When daily_trade_count >= MAX_TRADES_PER_DAY, validate should block."""
+    monkeypatch.setattr(_config, "MAX_TRADES_PER_DAY", 5)
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_trade_count=5,
+    )
+    assert not result.approved
+    assert result.block_reason == "DAILY_TRADE_LIMIT"
+
+
+def test_daily_trade_limit_not_triggered_below_max(monkeypatch):
+    """daily_trade_count < MAX_TRADES_PER_DAY should not block (Gold trade)."""
+    monkeypatch.setattr(_config, "MAX_TRADES_PER_DAY", 15)
+    result = validate(
+        action="BUY", confidence=0.8,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_trade_count=14,
+    )
+    assert result.approved
+
+
+def test_gold_lot_formula_unaffected(monkeypatch):
+    """Gold lot formula (CONTRACT_SIZE=100) must be unaffected by multi-symbol changes."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    # risk=$100, SL=$10, lot = 100/(10*100) = 0.10
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+    )
+    assert result.approved
+    assert result.lot_size == 0.10
+
+
+def test_gold_lot_uses_contract_size(monkeypatch):
+    """Gold branch: lot = risk / (sl_distance * CONTRACT_SIZE). Regression for hardcode removal."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    # risk=$100, SL=$10, lot=100/(10*100)=0.10
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+    )
+    assert result.lot_size == 0.10
+
+
+def test_forex_jpy_pip_size(monkeypatch):
+    """JPY pairs use pip_size=0.01, not 0.0001."""
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "USDJPY")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 9.0)  # ~$9/pip for USDJPY
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    # entry=150.000, sl=149.960 (4 JPY pips = 0.04), tp=150.050 (5 JPY pips = 0.05)
+    result = validate(
+        action="BUY", confidence=0.8,
+        sl=149.960, tp=150.050,
+        entry=150.000,
+        balance=10000.0, open_trades=0, kill_switch=False,
+    )
+    assert result.approved
+
+
+def test_daily_trade_limit_default_does_not_block():
+    """Default MAX_TRADES_PER_DAY=999 should not block a normal 10-trade day."""
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_trade_count=10,
+    )
+    assert result.approved  # 10 < 999 default
