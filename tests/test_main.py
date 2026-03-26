@@ -69,7 +69,9 @@ def test_decide_called_when_trigger_fires():
         patch("main.build_prompt", return_value="test prompt"),
         patch("main.decide", return_value=mock_ai) as mock_decide,
         patch("main.validate", return_value=mock_risk),
-        patch("main.get_account_info", return_value={"balance": 10000.0}),
+        patch("main.get_account_info", return_value={"balance": 10000.0, "equity": 10000.0}),
+        patch("main._check_daily_reset"),
+        patch("main.get_daily_start_balance", return_value=(10000.0, "2026-03-25")),
         patch("main.execute", return_value=[(0,)]),
         patch("main.log_decision") as mock_log,
         patch("main.time") as mock_time,
@@ -82,6 +84,7 @@ def test_decide_called_when_trigger_fires():
         mock_cfg.TRIGGER_MIN_SCORE_DIFF = 4.0
         mock_cfg.AI_INTERVAL_MINUTES = 5
         mock_cfg.DRY_RUN = True
+        mock_cfg.DAILY_DRAWDOWN_LIMIT = 0.05
         mock_time.sleep.side_effect = StopIteration
         try:
             run_loop()
@@ -132,3 +135,45 @@ def test_no_reconcile_when_reconnect_fails():
             pass
 
     mock_reconcile.assert_not_called()
+
+
+def test_drawdown_activates_kill_switch():
+    """When equity drops below daily drawdown limit, kill switch is auto-engaged."""
+    from main import run_loop
+    candle = {
+        "time": [datetime(2026, 3, 25, 10, i) for i in range(20)],
+        "open":  [1920.0] * 20,
+        "high":  [1925.0] * 20,
+        "low":   [1915.0] * 20,
+        "close": [1922.0] * 20,
+        "vol":   [1000.0] * 20,
+    }
+    with (
+        patch("main.fetch_candles", return_value=pd.DataFrame(candle)),
+        patch("main.run_all", return_value={}),
+        patch("main.compute_agg", return_value=MagicMock(buy_score=1.0, sell_score=1.0, signals={})),
+        patch("main.classify_regime", return_value="RANGING"),
+        patch("main.sync_positions", return_value=([], [])),
+        patch("main.get_kill_switch_state", return_value=False),
+        patch("main.config") as mock_cfg,
+        # Equity 9500 vs daily_start 10000 → -5% → exceeds 3% limit
+        patch("main.get_account_info", return_value={"balance": 9800.0, "equity": 9500.0}),
+        patch("main._check_daily_reset"),
+        patch("main.get_daily_start_balance", return_value=(10000.0, "2026-03-25")),
+        patch("main.set_kill_switch") as mock_set_kill,
+        patch("main.log_decision"),
+        patch("main.time") as mock_time,
+    ):
+        mock_cfg.DAILY_DRAWDOWN_LIMIT = 0.03
+        mock_cfg.POLL_INTERVAL_SECONDS = 1
+        mock_cfg.MAX_CONCURRENT_TRADES = 10
+        mock_cfg.TRIGGER_MIN_SCORE = 6.0
+        mock_cfg.TRIGGER_MIN_SCORE_DIFF = 4.0
+        mock_cfg.AI_INTERVAL_MINUTES = 5
+        mock_time.sleep.side_effect = StopIteration
+        try:
+            run_loop()
+        except StopIteration:
+            pass
+
+    mock_set_kill.assert_called_once_with(True)

@@ -22,6 +22,8 @@ def validate(
     open_trades: int,
     kill_switch: bool,
     daily_trade_count: int = 0,
+    daily_start_balance: float = 0.0,
+    equity: float = 0.0,
 ) -> RiskResult:
     if kill_switch:
         return RiskResult(approved=False, block_reason="KILL_SWITCH_ACTIVE")
@@ -29,6 +31,8 @@ def validate(
         return RiskResult(approved=False, block_reason="MAX_TRADES_REACHED")
     if daily_trade_count >= config.MAX_TRADES_PER_DAY:
         return RiskResult(approved=False, block_reason="DAILY_TRADE_LIMIT")
+    if daily_start_balance > 0 and equity < daily_start_balance * (1 - config.DAILY_DRAWDOWN_LIMIT):
+        return RiskResult(approved=False, block_reason="DAILY_DRAWDOWN")
     if confidence < config.MIN_AI_CONFIDENCE:
         return RiskResult(approved=False, block_reason="LOW_CONFIDENCE")
 

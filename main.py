@@ -157,6 +157,22 @@ def run_loop():
             open_trades = len(position_snapshot)
             kill = get_kill_switch_state()
 
+            # ── Daily drawdown guard (runs every candle tick) ─────────────
+            account = get_account_info()
+            balance = account.get("balance", 0.0)
+            equity = account.get("equity", balance)
+            _check_daily_reset(balance)
+            daily_start, _ = get_daily_start_balance()
+
+            if not kill and daily_start > 0 and equity < daily_start * (1 - config.DAILY_DRAWDOWN_LIMIT):
+                logger.warning(
+                    f"Daily drawdown limit ({config.DAILY_DRAWDOWN_LIMIT*100:.0f}%) hit: "
+                    f"equity={equity:.2f} vs threshold="
+                    f"{daily_start * (1 - config.DAILY_DRAWDOWN_LIMIT):.2f}"
+                )
+                set_kill_switch(True)
+                kill = True
+
             regime = classify_regime(candles)
             signals = run_all(candles, regime)
             agg = compute_agg(signals, regime)
@@ -236,9 +252,6 @@ def run_loop():
             sl = ai.sl
             tp = ai.tp
 
-            account = get_account_info()
-            balance = account.get("balance", 0.0)
-
             # Query today's placed trades for MAX_TRADES_PER_DAY gate
             try:
                 rows = execute(
@@ -260,6 +273,8 @@ def run_loop():
                 open_trades=open_trades,
                 kill_switch=kill,
                 daily_trade_count=daily_trade_count,
+                daily_start_balance=daily_start,
+                equity=equity,
             )
 
             if not risk.approved:

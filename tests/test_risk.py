@@ -286,3 +286,105 @@ def test_daily_trade_limit_default_does_not_block():
         daily_trade_count=10,
     )
     assert result.approved  # 10 < 999 default
+
+
+# ── Daily Drawdown Guard ──────────────────────────────────────────────────
+
+
+def test_drawdown_blocks_when_equity_below_limit(monkeypatch):
+    """Equity dropped below daily_start * (1 - DAILY_DRAWDOWN_LIMIT) → DAILY_DRAWDOWN."""
+    monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.03)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    # daily_start=10000, equity=9600 → -4% → exceeds 3% limit
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_start_balance=10000.0, equity=9600.0,
+    )
+    assert not result.approved
+    assert result.block_reason == "DAILY_DRAWDOWN"
+
+
+def test_drawdown_passes_when_equity_above_limit(monkeypatch):
+    """Equity still within drawdown limit → trade allowed."""
+    monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.05)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    # daily_start=10000, equity=9600 → -4% → within 5% limit
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_start_balance=10000.0, equity=9600.0,
+    )
+    assert result.approved
+
+
+def test_drawdown_at_exact_boundary_passes(monkeypatch):
+    """Equity exactly at threshold (not below) → trade allowed."""
+    monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.03)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    # daily_start=10000, threshold=9700, equity=9700 → exactly at boundary
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_start_balance=10000.0, equity=9700.0,
+    )
+    assert result.approved
+
+
+def test_drawdown_skipped_when_daily_start_zero(monkeypatch):
+    """When daily_start_balance=0 (not yet set), drawdown check is skipped."""
+    monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.03)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1910.0, tp=1940.0,
+        entry=1920.0, balance=10000.0,
+        open_trades=0, kill_switch=False,
+        daily_start_balance=0.0, equity=9000.0,
+    )
+    assert result.approved
+
+
+def test_drawdown_forex_3_percent(monkeypatch):
+    """Forex with 3% drawdown limit blocks at -3.5%."""
+    monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.03)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
+    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
+    monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
+    monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    # daily_start=5000, equity=4825 → -3.5% → exceeds 3%
+    result = validate(
+        action="BUY", confidence=0.9,
+        sl=1.08460, tp=1.08560,
+        entry=1.08500, balance=5000.0,
+        open_trades=0, kill_switch=False,
+        daily_start_balance=5000.0, equity=4825.0,
+    )
+    assert not result.approved
+    assert result.block_reason == "DAILY_DRAWDOWN"
