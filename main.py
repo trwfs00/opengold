@@ -239,6 +239,17 @@ def run_loop():
             account = get_account_info()
             balance = account.get("balance", 0.0)
 
+            # Query today's placed trades for MAX_TRADES_PER_DAY gate
+            try:
+                rows = execute(
+                    "SELECT COUNT(*) FROM trades "
+                    "WHERE DATE(open_time AT TIME ZONE 'UTC') = current_date",
+                    fetch=True,
+                )
+                daily_trade_count = int(rows[0][0]) if rows else 0
+            except Exception:
+                daily_trade_count = 0  # be permissive on DB error
+
             risk = validate(
                 action=direction,
                 confidence=confidence,
@@ -248,6 +259,7 @@ def run_loop():
                 balance=balance,
                 open_trades=open_trades,
                 kill_switch=kill,
+                daily_trade_count=daily_trade_count,
             )
 
             if not risk.approved:
