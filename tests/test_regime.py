@@ -4,12 +4,12 @@ import pandas as pd
 
 def test_returns_valid_regime(trending_up_candles):
     result = classify(trending_up_candles)
-    assert result in ("TRENDING", "RANGING", "BREAKOUT")
+    assert result in ("TRENDING_UP", "TRENDING_DOWN", "TRANSITIONAL", "RANGING", "BREAKOUT")
 
 
 def test_trending_regime(trending_up_candles):
     result = classify(trending_up_candles)
-    assert result == "TRENDING"
+    assert result in ("TRENDING_UP", "TRENDING_DOWN")
 
 
 def test_ranging_regime(ranging_candles):

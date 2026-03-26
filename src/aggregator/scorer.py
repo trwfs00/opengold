@@ -12,19 +12,19 @@ class AggregateResult:
 
 # Strategy weights per regime — NEUTRAL contributes zero regardless of weight
 WEIGHTS: dict[str, dict[str, float]] = {
-    "ma_crossover":       {"TRENDING": 1.5, "RANGING": 0.5, "BREAKOUT": 0.5},
-    "macd":               {"TRENDING": 1.5, "RANGING": 0.5, "BREAKOUT": 0.8},
-    "ichimoku":           {"TRENDING": 1.5, "RANGING": 0.3, "BREAKOUT": 0.5},
-    "momentum":           {"TRENDING": 1.2, "RANGING": 0.3, "BREAKOUT": 1.0},
-    "adx_trend":          {"TRENDING": 1.5, "RANGING": 0.3, "BREAKOUT": 0.8},
-    "rsi":                {"TRENDING": 0.3, "RANGING": 1.5, "BREAKOUT": 0.5},
-    "bollinger":          {"TRENDING": 0.5, "RANGING": 1.5, "BREAKOUT": 1.2},
-    "stochastic":         {"TRENDING": 0.3, "RANGING": 1.5, "BREAKOUT": 0.5},
-    "mean_reversion":     {"TRENDING": 0.3, "RANGING": 1.5, "BREAKOUT": 0.3},
-    "breakout":           {"TRENDING": 0.5, "RANGING": 0.5, "BREAKOUT": 2.0},
-    "support_resistance": {"TRENDING": 0.8, "RANGING": 1.0, "BREAKOUT": 1.5},
-    "scalping":           {"TRENDING": 0.8, "RANGING": 1.0, "BREAKOUT": 1.0},
-    "vwap":               {"TRENDING": 1.0, "RANGING": 1.0, "BREAKOUT": 1.0},
+    "ma_crossover":       {"TRENDING_UP": 1.5, "TRENDING_DOWN": 1.5, "TRANSITIONAL": 1.0, "RANGING": 0.5, "BREAKOUT": 0.5},
+    "macd":               {"TRENDING_UP": 1.5, "TRENDING_DOWN": 1.5, "TRANSITIONAL": 1.0, "RANGING": 0.5, "BREAKOUT": 0.8},
+    "ichimoku":           {"TRENDING_UP": 1.5, "TRENDING_DOWN": 1.5, "TRANSITIONAL": 0.8, "RANGING": 0.3, "BREAKOUT": 0.5},
+    "momentum":           {"TRENDING_UP": 1.2, "TRENDING_DOWN": 1.2, "TRANSITIONAL": 0.8, "RANGING": 0.3, "BREAKOUT": 1.0},
+    "adx_trend":          {"TRENDING_UP": 1.5, "TRENDING_DOWN": 1.5, "TRANSITIONAL": 1.0, "RANGING": 0.3, "BREAKOUT": 0.8},
+    "rsi":                {"TRENDING_UP": 0.3, "TRENDING_DOWN": 0.3, "TRANSITIONAL": 0.8, "RANGING": 1.5, "BREAKOUT": 0.5},
+    "bollinger":          {"TRENDING_UP": 0.5, "TRENDING_DOWN": 0.5, "TRANSITIONAL": 1.0, "RANGING": 1.5, "BREAKOUT": 1.2},
+    "stochastic":         {"TRENDING_UP": 0.3, "TRENDING_DOWN": 0.3, "TRANSITIONAL": 0.8, "RANGING": 1.5, "BREAKOUT": 0.5},
+    "mean_reversion":     {"TRENDING_UP": 0.3, "TRENDING_DOWN": 0.3, "TRANSITIONAL": 0.5, "RANGING": 1.5, "BREAKOUT": 0.3},
+    "breakout":           {"TRENDING_UP": 0.5, "TRENDING_DOWN": 0.5, "TRANSITIONAL": 0.8, "RANGING": 0.5, "BREAKOUT": 2.0},
+    "support_resistance": {"TRENDING_UP": 0.8, "TRENDING_DOWN": 0.8, "TRANSITIONAL": 1.0, "RANGING": 1.0, "BREAKOUT": 1.5},
+    "scalping":           {"TRENDING_UP": 0.8, "TRENDING_DOWN": 0.8, "TRANSITIONAL": 1.0, "RANGING": 1.0, "BREAKOUT": 1.0},
+    "vwap":               {"TRENDING_UP": 1.0, "TRENDING_DOWN": 1.0, "TRANSITIONAL": 1.0, "RANGING": 1.0, "BREAKOUT": 1.0},
 }
 
 
