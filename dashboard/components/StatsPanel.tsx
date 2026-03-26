@@ -1,12 +1,16 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { StatsData } from '@/lib/api'
+import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 interface Props {
   stats: StatsData | null
 }
 
 export default function StatsPanel({ stats }: Props) {
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartRef = useRef<any>(null)
@@ -41,7 +45,7 @@ export default function StatsPanel({ stats }: Props) {
       })
 
       const series = chart.addLineSeries({
-        color: '#f59e0b',   // amber
+        color: meta.hex,   // bot accent
         lineWidth: 2,
         priceLineVisible: false,
       })

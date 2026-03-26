@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { SignalsData, RegimeStats, fetchRegimeStats } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
 import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 // Canonical display order of the 13 strategies
 const STRATEGY_ORDER = [
@@ -55,6 +56,7 @@ interface Props {
 export default function AnalyticsPanel({ signals }: Props) {
   const { t } = useT()
   const { bot } = useBot()
+  const meta = BOT_META[bot]
   const [regimeStats, setRegimeStats] = useState<RegimeStats | null>(null)
 
   useEffect(() => {
@@ -175,7 +177,7 @@ export default function AnalyticsPanel({ signals }: Props) {
                 const rest = line.slice(3)
                 return (
                   <li key={i} className="flex gap-2 font-mono text-[11px]">
-                    <span className="text-amber-500/70 font-bold shrink-0">{prefix}</span>
+                    <span className={`${meta.accentDim} font-bold shrink-0`}>{prefix}</span>
                     <span className="text-zinc-500">{rest}</span>
                   </li>
                 )

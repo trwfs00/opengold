@@ -29,6 +29,17 @@ export default function Page() {
 
   const { bot } = useBot()
 
+  // Reset all state when switching bots so stale data doesn't persist
+  useEffect(() => {
+    setCandles([])
+    setAccount(null)
+    setSignals(null)
+    setTrades([])
+    setStats(null)
+    setStatus(null)
+    setSummary(null)
+  }, [bot])
+
   const refresh = useCallback(async () => {
     await Promise.allSettled([
       fetchCandles(bot).then(setCandles).catch(() => {}),

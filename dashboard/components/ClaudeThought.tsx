@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchDecisions, DecisionRow } from '@/lib/api'
 import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 function ActionBadge({ action, blockReason }: { action: string | null; blockReason: string | null }) {
   if (!action) return null
@@ -32,6 +33,7 @@ export default function ClaudeThought() {
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { bot } = useBot()
+  const meta = BOT_META[bot]
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +89,7 @@ export default function ClaudeThought() {
           <span className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
             Claude
           </span>
-          <span className={`inline-block w-1.5 h-1.5 rounded-full ${isTyping ? 'bg-amber-400 animate-pulse' : 'bg-zinc-700'}`} />
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${isTyping ? `${meta.accentSolid} animate-pulse` : 'bg-zinc-700'}`} />
         </div>
         <div className="flex items-center gap-2">
           <ActionBadge action={latest.ai_action} blockReason={latest.risk_block_reason} />
@@ -101,7 +103,7 @@ export default function ClaudeThought() {
       <blockquote className="border-l-2 border-zinc-700 pl-3">
         <p className="text-zinc-300 text-sm font-mono leading-relaxed">
           {reasoning}
-          {isTyping && <span className="inline-block w-0.5 h-4 bg-amber-400 ml-0.5 animate-pulse align-middle" />}
+          {isTyping && <span className={`inline-block w-0.5 h-4 ${meta.accentSolid} ml-0.5 animate-pulse align-middle`} />}
         </p>
       </blockquote>
 

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchDecisions, DecisionRow } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
 import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const
 
@@ -21,6 +22,7 @@ function getPageNumbers(current: number, total: number): (number | '...')[] {
 export default function DecisionsTable() {
   const { t } = useT()
   const { bot } = useBot()
+  const meta = BOT_META[bot]
   const [decisions, setDecisions] = useState<DecisionRow[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
@@ -66,19 +68,19 @@ export default function DecisionsTable() {
           type="date"
           value={dateFrom}
           onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-          className="bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-2 py-0.5 rounded focus:outline-none focus:border-amber-500/50 [color-scheme:dark]"
+          className={`bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-2 py-0.5 rounded focus:outline-none ${meta.accentBorder.replace('border-', 'focus:border-')} [color-scheme:dark]`}
         />
         <span className="text-zinc-600 text-[10px] font-mono">—</span>
         <input
           type="date"
           value={dateTo}
           onChange={e => { setDateTo(e.target.value); setPage(1) }}
-          className="bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-2 py-0.5 rounded focus:outline-none focus:border-amber-500/50 [color-scheme:dark]"
+          className={`bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-2 py-0.5 rounded focus:outline-none ${meta.accentBorder.replace('border-', 'focus:border-')} [color-scheme:dark]`}
         />
         <select
           value={pageSize}
           onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
-          className="bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-1.5 py-0.5 rounded focus:outline-none focus:border-amber-500/50"
+          className={`bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-1.5 py-0.5 rounded focus:outline-none ${meta.accentBorder.replace('border-', 'focus:border-')}`}
         >
           {PAGE_SIZE_OPTIONS.map(n => (
             <option key={n} value={n}>{n}</option>
@@ -154,7 +156,7 @@ export default function DecisionsTable() {
                       key={p}
                       onClick={() => setPage(p as number)}
                       className={`min-w-[22px] px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${
-                        page === p ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:text-zinc-200'
+                        page === p ? `${meta.accentBg} ${meta.accent}` : 'text-zinc-500 hover:text-zinc-200'
                       }`}
                     >{p}</button>
               )}

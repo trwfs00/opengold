@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { StatusData } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
+import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 import BotTabSwitcher from '@/components/BotTabSwitcher'
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
 function ModelPricingTooltip({ modelName }: { modelName: string }) {
   const [open, setOpen] = useState(false)
   const { t } = useT()
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   // token estimates based on prompt.py analysis
   const inputTokens = 350
   const outputTokens = 200
@@ -27,7 +31,7 @@ function ModelPricingTooltip({ modelName }: { modelName: string }) {
       <button
         onClick={() => setOpen(v => !v)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="text-zinc-600 hover:text-amber-400 transition-colors focus:outline-none"
+        className={`text-zinc-600 ${meta.accentHover} transition-colors focus:outline-none`}
         aria-label="AI model pricing"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -36,7 +40,7 @@ function ModelPricingTooltip({ modelName }: { modelName: string }) {
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-2 w-72 z-50 bg-zinc-950 border border-zinc-700/60 rounded-lg shadow-2xl shadow-black/60 p-3.5 text-[11px] font-mono">
-          <p className="text-amber-400 font-semibold text-[10px] uppercase tracking-widest mb-2.5">{t.modelPricingTitle}</p>
+          <p className={`${meta.accent} font-semibold text-[10px] uppercase tracking-widest mb-2.5`}>{t.modelPricingTitle}</p>
           <p className="text-zinc-300 mb-2.5">{modelName}</p>
           <div className="space-y-1 text-zinc-400 mb-2.5">
             <div className="flex justify-between">
@@ -51,7 +55,7 @@ function ModelPricingTooltip({ modelName }: { modelName: string }) {
           <div className="border-t border-zinc-800 pt-2.5 mb-2">
             <div className="flex justify-between items-baseline">
               <span className="text-zinc-400">{t.modelPricingCost}</span>
-              <span className="text-amber-400 font-semibold">~${totalUSD.toFixed(4)} <span className="text-zinc-500">({totalTHB.toFixed(2)} ฿)</span></span>
+              <span className={`${meta.accent} font-semibold`}>~${totalUSD.toFixed(4)} <span className="text-zinc-500">({totalTHB.toFixed(2)} ฿)</span></span>
             </div>
           </div>
           <p className="text-zinc-600 text-[9px]">{t.modelPricingBudget(10)}</p>
@@ -99,6 +103,8 @@ function fmtCountdown(s: number): string {
 
 export default function StatusBar({ status, onKillSwitch }: Props) {
   const { t, locale, setLocale } = useT()
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   const timers = useAiTimers(status?.last_ai_time, status?.ai_interval_minutes)
 
   if (!status) {
@@ -144,9 +150,9 @@ export default function StatusBar({ status, onKillSwitch }: Props) {
             <span className="text-zinc-700">|</span>
             {/* PERIODIC — 5 min */}
             <span className="flex items-center gap-1">
-              <span className={`font-bold ${timers.periodicLeft === 0 ? 'text-amber-400' : 'text-zinc-600'}`}>AI PERIOD</span>
+              <span className={`font-bold ${timers.periodicLeft === 0 ? meta.accent : 'text-zinc-600'}`}>AI PERIOD</span>
               <span className={`tabular-nums ${
-                timers.periodicLeft === 0 ? 'text-amber-400' :
+                timers.periodicLeft === 0 ? meta.accent :
                 timers.periodicLeft <= 30 ? 'text-amber-500' : 'text-zinc-500'
               }`}>
                 {timers.periodicLeft === 0 ? 'READY' : fmtCountdown(timers.periodicLeft)}
@@ -160,14 +166,14 @@ export default function StatusBar({ status, onKillSwitch }: Props) {
         <div className="flex items-center rounded overflow-hidden border border-zinc-700">
           <button
             onClick={() => setLocale('en')}
-            className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors ${locale === 'en' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors ${locale === 'en' ? `${meta.accentBg} ${meta.accent}` : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             EN
           </button>
           <div className="w-px h-4 bg-zinc-700" />
           <button
             onClick={() => setLocale('th')}
-            className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors ${locale === 'th' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors ${locale === 'th' ? `${meta.accentBg} ${meta.accent}` : 'text-zinc-500 hover:text-zinc-300'}`}
           >
             TH
           </button>

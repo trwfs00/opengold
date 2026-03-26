@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.getenv("ENV_FILE", ".env"), override=True)
 
 # MT5
 MT5_LOGIN = int(os.environ["MT5_LOGIN"])

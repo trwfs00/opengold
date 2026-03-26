@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { SignalsData } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
+import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 interface Props {
   signals: SignalsData | null
@@ -10,12 +12,14 @@ interface Props {
 function InfoTooltip() {
   const [open, setOpen] = useState(false)
   const { t } = useT()
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(v => !v)}
         onBlur={() => setOpen(false)}
-        className="text-zinc-600 hover:text-amber-400 transition-colors focus:outline-none"
+        className={`text-zinc-600 ${meta.accentHover} transition-colors focus:outline-none`}
         aria-label="How decisions are made"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -24,11 +28,11 @@ function InfoTooltip() {
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-2 w-80 z-50 bg-zinc-950 border border-zinc-700/60 rounded-lg shadow-2xl shadow-black/60 p-4 text-[11px] font-mono">
-          <p className="text-amber-400 font-semibold text-[10px] uppercase tracking-widest mb-3">{t.decisionPipeline}</p>
+          <p className={`${meta.accent} font-semibold text-[10px] uppercase tracking-widest mb-3`}>{t.decisionPipeline}</p>
           <ol className="space-y-2.5 text-zinc-400 list-none">
             {t.pipelineSteps.map((step, i) => (
               <li key={i} className="flex gap-2">
-                <span className="text-amber-500/70 font-bold shrink-0">{i + 1}.</span>
+                <span className={`${meta.accentDim} font-bold shrink-0`}>{i + 1}.</span>
                 <span><span className="text-zinc-200">{step.label}</span> {step.desc}</span>
               </li>
             ))}
@@ -36,11 +40,11 @@ function InfoTooltip() {
           <div className="mt-3 pt-3 border-t border-zinc-800 flex gap-4">
             <div>
               <p className="text-zinc-600 text-[9px] uppercase tracking-widest mb-0.5">{t.triggerThreshold}</p>
-              <p className="text-amber-400">&ge; 4.0 score</p>
+              <p className={meta.accent}>&ge; 4.0 score</p>
             </div>
             <div>
               <p className="text-zinc-600 text-[9px] uppercase tracking-widest mb-0.5">{t.minSeparation}</p>
-              <p className="text-amber-400">&ge; 1.0 diff</p>
+              <p className={meta.accent}>&ge; 1.0 diff</p>
             </div>
           </div>
         </div>

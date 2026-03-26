@@ -2,6 +2,8 @@
 import { useEffect, useRef } from 'react'
 import { StatsData, AccountInfo } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
+import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 interface Props {
   stats: StatsData | null
@@ -10,6 +12,8 @@ interface Props {
 
 export default function PerformancePanel({ stats, account }: Props) {
   const { t } = useT()
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartRef = useRef<any>(null)
@@ -28,7 +32,7 @@ export default function PerformancePanel({ stats, account }: Props) {
         timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#27272a' },
         rightPriceScale: { borderColor: '#27272a' },
       })
-      const series = chart.addLineSeries({ color: '#f59e0b', lineWidth: 2, priceLineVisible: false })
+      const series = chart.addLineSeries({ color: meta.hex, lineWidth: 2, priceLineVisible: false })
       chartRef.current = chart
       seriesRef.current = series
       if (stats?.pnl_curve?.length) {
@@ -39,7 +43,7 @@ export default function PerformancePanel({ stats, account }: Props) {
     return () => {
       if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; seriesRef.current = null }
     }
-  }, []) // mount only
+  }, [bot]) // recreate chart when bot changes
 
   useEffect(() => {
     if (seriesRef.current && stats?.pnl_curve?.length) {

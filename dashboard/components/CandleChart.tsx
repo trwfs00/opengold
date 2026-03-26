@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { fetchCandles, CandleBar } from '@/lib/api'
 import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 
 const RANGES = [
   { label: '30m', limit: 30 },
@@ -22,6 +23,7 @@ export default function CandleChart() {
   const [candles, setCandles] = useState<CandleBar[]>([])
 
   const { bot } = useBot()
+  const meta = BOT_META[bot]
 
   const load = useCallback(async (lbl: RangeLabel) => {
     const limit = RANGES.find(r => r.label === lbl)!.limit
@@ -67,10 +69,10 @@ export default function CandleChart() {
       })
 
       const series = chart.addCandlestickSeries({
-        upColor: '#f59e0b',
+        upColor: meta.hex,
         downColor: '#ef4444',
         borderVisible: false,
-        wickUpColor: '#f59e0b',
+        wickUpColor: meta.hex,
         wickDownColor: '#ef4444',
       })
 
@@ -85,7 +87,7 @@ export default function CandleChart() {
         seriesRef.current = null
       }
     }
-  }, [])
+  }, [bot]) // recreate chart when bot changes (candle color)
 
   // Update data without recreating chart
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function CandleChart() {
     <section className="bg-zinc-900 border border-zinc-800 rounded">
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
         <h2 className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
-          XAUUSD · M1
+          {meta.symbol} · {bot === 'forex' ? 'M5' : 'M1'}
         </h2>
         <div className="flex items-center gap-1">
           {candles.length === 0 && (
@@ -113,7 +115,7 @@ export default function CandleChart() {
                 onClick={() => setRange(r.label)}
                 className={`px-2.5 py-0.5 text-[10px] font-mono font-semibold tracking-wide transition-colors ${
                   range === r.label
-                    ? 'bg-amber-500/20 text-amber-400'
+                    ? `${meta.accentBg} ${meta.accent}`
                     : 'text-zinc-600 hover:text-zinc-300'
                 } ${i > 0 ? 'border-l border-zinc-800' : ''}`}
               >

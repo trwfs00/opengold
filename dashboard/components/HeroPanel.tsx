@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { CandleBar, SummaryData } from '@/lib/api'
+import { useBot } from '@/context/BotContext'
+import { BOT_META } from '@/lib/bot-meta'
 import { useT } from '@/lib/i18n-context'
 
 interface Props {
@@ -25,6 +27,8 @@ function useCountdown() {
 
 export default function HeroPanel({ candles, summary }: Props) {
   const { t } = useT()
+  const { bot } = useBot()
+  const meta = BOT_META[bot]
   const { m, s } = useCountdown()
   const latest = candles.at(-1)
   const prev = candles.at(-2)
@@ -32,22 +36,23 @@ export default function HeroPanel({ candles, summary }: Props) {
   const change = price !== undefined && prev?.close !== undefined ? price - prev.close : null
   const changePct = change !== null && prev?.close ? (change / prev.close) * 100 : null
   const positive = change === null || change >= 0
+  const decimals = bot === 'forex' ? 5 : 2
 
   return (
     <section className="px-5 pt-5 pb-8">
       {/* Top row: symbol + price | countdown */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <p className="text-amber-400 text-[10px] font-mono font-semibold uppercase tracking-[0.2em] mb-1.5">
-            XAUUSDM GOLD
+          <p className={`${meta.accent} text-[10px] font-mono font-semibold uppercase tracking-[0.2em] mb-1.5`}>
+            {meta.symbol} {meta.label}
           </p>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span className="text-amber-400 text-5xl font-mono font-bold tabular-nums tracking-tight leading-none">
-              {price?.toFixed(2) ?? '—'}
+            <span className={`${meta.accent} text-5xl font-mono font-bold tabular-nums tracking-tight leading-none`}>
+              {price?.toFixed(decimals) ?? '—'}
             </span>
             {change !== null && changePct !== null && (
               <span className={`text-sm font-mono font-semibold tabular-nums ${positive ? 'text-lime-400' : 'text-red-400'}`}>
-                {positive ? '+' : ''}{change.toFixed(2)} ({positive ? '+' : ''}{changePct.toFixed(2)}%)
+                {positive ? '+' : ''}{change.toFixed(decimals)} ({positive ? '+' : ''}{changePct.toFixed(2)}%)
               </span>
             )}
           </div>
@@ -60,7 +65,7 @@ export default function HeroPanel({ candles, summary }: Props) {
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">
             {t.nextAnalysis}
           </p>
-          <p className="text-amber-400/90 font-mono text-3xl font-bold tabular-nums leading-none">
+          <p className={`${meta.accentDim} font-mono text-3xl font-bold tabular-nums leading-none`}>
             {m}:{String(s).padStart(2, '0')}
           </p>
         </div>
@@ -72,7 +77,7 @@ export default function HeroPanel({ candles, summary }: Props) {
         <div className="pr-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.today}</p>
           <p className="font-mono text-sm font-semibold leading-snug">
-            <span className="text-amber-400">{summary?.today_win ?? '—'}</span>
+            <span className={meta.accent}>{summary?.today_win ?? '—'}</span>
             <span className="text-zinc-700"> / </span>
             <span className="text-red-400">{summary?.today_loss ?? '—'}</span>
             <span className="text-zinc-700"> / </span>
