@@ -1,27 +1,47 @@
 'use client'
-import { useEffect, useRef } from 'react'
-import { CandleBar } from '@/lib/api'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { fetchCandles, CandleBar } from '@/lib/api'
+import { useBot } from '@/context/BotContext'
 
-interface Props {
-  candles: CandleBar[]
-}
+const RANGES = [
+  { label: '30m', limit: 30 },
+  { label: '1H',  limit: 60 },
+  { label: '4H',  limit: 240 },
+  { label: '1D',  limit: 1440 },
+] as const
 
-export default function CandleChart({ candles }: Props) {
+type RangeLabel = typeof RANGES[number]['label']
+
+export default function CandleChart() {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seriesRef = useRef<any>(null)
+  const [range, setRange] = useState<RangeLabel>('4H')
+  const [candles, setCandles] = useState<CandleBar[]>([])
+
+  const { bot } = useBot()
+
+  const load = useCallback(async (lbl: RangeLabel) => {
+    const limit = RANGES.find(r => r.label === lbl)!.limit
+    try {
+      const data = await fetchCandles(bot, limit)
+      setCandles(data)
+    } catch {
+      // silently ignore fetch errors — chart keeps last data
+    }
+  }, [bot])
+
+  // Reload when range changes
+  useEffect(() => { load(range) }, [range, load])
 
   // Create chart on mount only
   useEffect(() => {
     if (!containerRef.current) return
 
     import('lightweight-charts').then(({ createChart, ColorType }) => {
-      // Clean up if somehow called twice
-      if (chartRef.current) {
-        chartRef.current.remove()
-      }
+      if (chartRef.current) chartRef.current.remove()
 
       const chart = createChart(containerRef.current!, {
         layout: {
@@ -39,9 +59,7 @@ export default function CandleChart({ candles }: Props) {
           secondsVisible: false,
           borderColor: '#27272a',
         },
-        rightPriceScale: {
-          borderColor: '#27272a',
-        },
+        rightPriceScale: { borderColor: '#27272a' },
         crosshair: {
           vertLine: { color: '#52525b', labelBackgroundColor: '#3f3f46' },
           horzLine: { color: '#52525b', labelBackgroundColor: '#3f3f46' },
@@ -49,7 +67,7 @@ export default function CandleChart({ candles }: Props) {
       })
 
       const series = chart.addCandlestickSeries({
-        upColor: '#f59e0b',        // amber — gold trading theme
+        upColor: '#f59e0b',
         downColor: '#ef4444',
         borderVisible: false,
         wickUpColor: '#f59e0b',
@@ -58,12 +76,6 @@ export default function CandleChart({ candles }: Props) {
 
       chartRef.current = chart
       seriesRef.current = series
-
-      if (candles.length) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        series.setData(candles as any)
-        chart.timeScale().fitContent()
-      }
     })
 
     return () => {
@@ -73,7 +85,7 @@ export default function CandleChart({ candles }: Props) {
         seriesRef.current = null
       }
     }
-  }, []) // mount only — intentional empty dep array
+  }, [])
 
   // Update data without recreating chart
   useEffect(() => {
@@ -88,11 +100,28 @@ export default function CandleChart({ candles }: Props) {
     <section className="bg-zinc-900 border border-zinc-800 rounded">
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
         <h2 className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
-          XAUUSD · 1H
+          XAUUSD · M1
         </h2>
-        {candles.length === 0 && (
-          <span className="text-zinc-600 text-[10px] font-mono">No data</span>
-        )}
+        <div className="flex items-center gap-1">
+          {candles.length === 0 && (
+            <span className="text-zinc-600 text-[10px] font-mono mr-2">No data</span>
+          )}
+          <div className="flex items-center rounded overflow-hidden border border-zinc-800">
+            {RANGES.map((r, i) => (
+              <button
+                key={r.label}
+                onClick={() => setRange(r.label)}
+                className={`px-2.5 py-0.5 text-[10px] font-mono font-semibold tracking-wide transition-colors ${
+                  range === r.label
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'text-zinc-600 hover:text-zinc-300'
+                } ${i > 0 ? 'border-l border-zinc-800' : ''}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div ref={containerRef} />
     </section>

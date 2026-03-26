@@ -1,17 +1,20 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
+import { useBot } from '@/context/BotContext'
 import {
-  fetchCandles, fetchAccount, fetchSignals, fetchDecisions,
-  fetchTrades, fetchStats, fetchStatus, postKillSwitch,
-  CandleBar, AccountInfo, SignalsData, DecisionRow, TradeRow, StatsData, StatusData,
+  fetchCandles, fetchAccount, fetchSignals,
+  fetchTrades, fetchStats, fetchStatus, fetchSummary, postKillSwitch,
+  CandleBar, AccountInfo, SignalsData, TradeRow, StatsData, StatusData, SummaryData,
 } from '@/lib/api'
 import StatusBar from '@/components/StatusBar'
-import AccountPanel from '@/components/AccountPanel'
 import CandleChart from '@/components/CandleChart'
+import HeroPanel from '@/components/HeroPanel'
+import PerformancePanel from '@/components/PerformancePanel'
 import SignalsPanel from '@/components/SignalsPanel'
 import DecisionsTable from '@/components/DecisionsTable'
 import TradesTable from '@/components/TradesTable'
-import StatsPanel from '@/components/StatsPanel'
+import AnalyticsPanel from '@/components/AnalyticsPanel'
+import ClaudeThought from '@/components/ClaudeThought'
 
 const POLL_MS = 5000
 
@@ -19,22 +22,24 @@ export default function Page() {
   const [candles, setCandles] = useState<CandleBar[]>([])
   const [account, setAccount] = useState<AccountInfo | null>(null)
   const [signals, setSignals] = useState<SignalsData | null>(null)
-  const [decisions, setDecisions] = useState<DecisionRow[]>([])
   const [trades, setTrades] = useState<TradeRow[]>([])
   const [stats, setStats] = useState<StatsData | null>(null)
   const [status, setStatus] = useState<StatusData | null>(null)
+  const [summary, setSummary] = useState<SummaryData | null>(null)
+
+  const { bot } = useBot()
 
   const refresh = useCallback(async () => {
     await Promise.allSettled([
-      fetchCandles().then(setCandles).catch(() => {}),
-      fetchAccount().then(setAccount).catch(() => {}),
-      fetchSignals().then(setSignals).catch(() => {}),
-      fetchDecisions().then(setDecisions).catch(() => {}),
-      fetchTrades().then(setTrades).catch(() => {}),
-      fetchStats().then(setStats).catch(() => {}),
-      fetchStatus().then(setStatus).catch(() => {}),
+      fetchCandles(bot).then(setCandles).catch(() => {}),
+      fetchAccount(bot).then(setAccount).catch(() => {}),
+      fetchSignals(bot).then(setSignals).catch(() => {}),
+      fetchTrades(bot).then(setTrades).catch(() => {}),
+      fetchStats(bot).then(setStats).catch(() => {}),
+      fetchStatus(bot).then(setStatus).catch(() => {}),
+      fetchSummary(bot).then(setSummary).catch(() => {}),
     ])
-  }, [])
+  }, [bot])
 
   useEffect(() => {
     refresh()
@@ -44,8 +49,8 @@ export default function Page() {
 
   const handleKillSwitch = async (active: boolean) => {
     try {
-      await postKillSwitch(active)
-      await fetchStatus().then(setStatus)
+      await postKillSwitch(bot, active)
+      await fetchStatus(bot).then(setStatus)
     } catch {
       // ignore — status will be refreshed by next poll
     }
@@ -54,23 +59,31 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <StatusBar status={status} onKillSwitch={handleKillSwitch} />
-      <main className="max-w-screen-2xl mx-auto p-4 space-y-4">
+      <main className="max-w-screen-xl mx-auto my-8 space-y-0">
+        {/* Hero — price + countdown + summary stats */}
+        <HeroPanel candles={candles} summary={summary} />
+
+        <div className="px-4 space-y-4">
         {/* Chart — full width */}
-        <CandleChart candles={candles} />
+        <CandleChart />
 
-        {/* Signals + Account side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SignalsPanel signals={signals} />
-          <AccountPanel account={account} />
-        </div>
+        {/* Performance — full width (merged stats + account) */}
+        <PerformancePanel stats={stats} account={account} />
 
-        {/* Stats — full width */}
-        <StatsPanel stats={stats} />
+        {/* Signals */}
+        <SignalsPanel signals={signals} />
+
+        {/* Claude's latest reasoning */}
+        <ClaudeThought />
+
+        {/* Strategy analytics — breakdown bars + regime distribution */}
+        <AnalyticsPanel signals={signals} />
 
         {/* Tables side by side */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <DecisionsTable decisions={decisions} />
+          <DecisionsTable />
           <TradesTable trades={trades} />
+        </div>
         </div>
       </main>
     </div>
