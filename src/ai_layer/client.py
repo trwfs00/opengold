@@ -17,6 +17,7 @@ class AIDecision:
     confidence: float = 0.0
     sl: float = 0.0
     tp: float = 0.0
+    reasoning: str | None = None
     error: str | None = None
 
 
@@ -24,7 +25,7 @@ def _call_model(client: anthropic.Anthropic, model: str, prompt: str) -> str:
     """Call the Anthropic API and return the raw text response."""
     message = client.messages.create(
         model=model,
-        max_tokens=256,
+        max_tokens=512,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text
@@ -59,6 +60,7 @@ def _parse(raw: str) -> AIDecision:
         confidence=float(data.get("confidence", 0.0)),
         sl=float(data.get("sl", 0.0)),
         tp=float(data.get("tp", 0.0)),
+        reasoning=str(data["reasoning"]) if "reasoning" in data else None,
     )
 
 

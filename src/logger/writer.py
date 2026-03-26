@@ -17,17 +17,27 @@ def log_decision(
     ai_tp: float | None = None,
     risk_block_reason: str | None = None,
     signals: dict | None = None,
+    ai_reasoning: str | None = None,
 ):
     try:
         execute(
             """INSERT INTO decisions
                (time, regime, buy_score, sell_score, trigger_fired,
-                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason, signals)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason, signals, ai_reasoning)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
-                datetime.now(timezone.utc), regime, buy_score, sell_score, trigger_fired,
-                ai_action, ai_confidence, ai_sl, ai_tp, risk_block_reason,
+                datetime.now(timezone.utc),
+                str(regime),
+                float(buy_score),
+                float(sell_score),
+                bool(trigger_fired),
+                str(ai_action) if ai_action is not None else None,
+                float(ai_confidence) if ai_confidence is not None else None,
+                float(ai_sl) if ai_sl is not None else None,
+                float(ai_tp) if ai_tp is not None else None,
+                risk_block_reason,
                 json.dumps(signals) if signals is not None else None,
+                ai_reasoning,
             ),
         )
     except Exception as e:
@@ -52,8 +62,9 @@ def log_trade(
                (open_time, close_time, direction, lot_size,
                 open_price, close_price, sl, tp, pnl, result)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (open_time, close_time, direction, lot_size,
-             open_price, close_price, sl, tp, pnl, result),
+            (open_time, close_time, str(direction),
+             float(lot_size), float(open_price), float(close_price),
+             float(sl), float(tp), float(pnl), result),
         )
     except Exception as e:
         logger.error(f"log_trade failed: {e}")

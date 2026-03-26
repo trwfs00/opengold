@@ -12,7 +12,7 @@ def test_log_decision_persists_signals():
         _w.log_decision("TRENDING", 7.5, 1.2, True, signals=signals)
         call_args = mock_exec.call_args[0]
         params = call_args[1]
-        assert params[-1] == json.dumps(signals)
+        assert params[-2] == json.dumps(signals)
 
 
 def test_log_decision_signals_none_by_default():
@@ -22,4 +22,4 @@ def test_log_decision_signals_none_by_default():
         _w.log_decision("RANGING", 3.0, 4.0, False)
         call_args = mock_exec.call_args[0]
         params = call_args[1]
-        assert params[-1] is None
+        assert params[-2] is None  # signals slot
