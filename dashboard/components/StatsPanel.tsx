@@ -83,21 +83,21 @@ export default function StatsPanel({ stats }: Props) {
           <div className="grid grid-cols-4 gap-4 mb-4">
             <StatItem
               label="Win Rate"
-              value={stats.win_rate !== null ? `${(stats.win_rate * 100).toFixed(1)}%` : '—'}
+              value={stats.win_rate != null ? `${(stats.win_rate * 100).toFixed(1)}%` : '—'}
             />
             <StatItem
               label="Total P&L"
-              value={stats.total_pnl !== null ? `${stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}` : '—'}
-              color={stats.total_pnl >= 0 ? 'text-amber-400' : 'text-red-400'}
+              value={stats.total_pnl != null ? `${stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}` : '—'}
+              color={stats.total_pnl != null && stats.total_pnl >= 0 ? 'text-amber-400' : 'text-red-400'}
             />
             <StatItem
               label="Avg Win"
-              value={stats.avg_win !== null ? `+${stats.avg_win.toFixed(2)}` : '—'}
+              value={stats.avg_win != null ? `+${stats.avg_win.toFixed(2)}` : '—'}
               color="text-amber-400"
             />
             <StatItem
               label="Avg Loss"
-              value={stats.avg_loss !== null ? stats.avg_loss.toFixed(2) : '—'}
+              value={stats.avg_loss != null ? stats.avg_loss.toFixed(2) : '—'}
               color="text-red-400"
             />
           </div>
