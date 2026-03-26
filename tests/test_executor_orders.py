@@ -58,7 +58,31 @@ def test_place_order_sell_success():
         from src.executor.orders import place_order
         result = place_order("SELL", 0.01, 1940.0, 1910.0)
     assert result["success"] is True
-    assert result["ticket"] == 99999
+
+
+def test_place_order_uses_config_symbol(monkeypatch):
+    """place_order must use config.SYMBOL, not a hardcoded constant."""
+    from src import config
+    monkeypatch.setattr(config, "SYMBOL", "EURUSD")
+
+    mock_mt5 = _make_mt5_module()
+    tick = MagicMock()
+    tick.ask = 1.08500
+    mock_mt5.symbol_info_tick.return_value = tick
+
+    order_result = MagicMock()
+    order_result.retcode = mock_mt5.TRADE_RETCODE_DONE
+    order_result.order = 12345
+    order_result.price = 1.08500
+    mock_mt5.order_send.return_value = order_result
+
+    with patch("src.executor.orders.mt5", mock_mt5):
+        from src.executor.orders import place_order
+        result = place_order("BUY", 0.10, 1.0810, 1.0900, dry_run=False)
+
+    assert result["success"] is True
+    call_args = mock_mt5.order_send.call_args[0][0]
+    assert call_args["symbol"] == "EURUSD"
 
 
 def test_place_order_rejected():

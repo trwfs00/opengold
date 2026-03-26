@@ -1,6 +1,6 @@
 import logging
 import MetaTrader5 as mt5
-from src.mt5_bridge.data import SYMBOL
+from src import config
 
 logger = logging.getLogger(__name__)
 
@@ -11,13 +11,13 @@ def place_order(direction: str, lot_size: float, sl: float, tp: float, dry_run: 
         logger.info(f"DRY_RUN order: {direction} {lot_size} lots sl={sl} tp={tp}")
         return {"success": True, "ticket": 0, "price": 0.0, "dry_run": True}
     order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
-    tick = mt5.symbol_info_tick(SYMBOL)
+    tick = mt5.symbol_info_tick(config.SYMBOL)
     if tick is None:
         return {"success": False, "retcode": None, "comment": "no tick data"}
     price = tick.ask if direction == "BUY" else tick.bid
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": SYMBOL,
+        "symbol": config.SYMBOL,
         "volume": lot_size,
         "type": order_type,
         "price": price,
