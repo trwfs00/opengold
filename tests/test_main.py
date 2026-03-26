@@ -38,9 +38,8 @@ def test_connect_with_retry_succeeds_on_second():
 
 
 def test_decide_called_when_trigger_fires():
-    """When trigger fires, _decide() and calculate_sl_tp() are called deterministically."""
+    """When trigger fires (hot_signal=True), decide() is called with the built prompt."""
     from main import run_loop
-    from src.execution.decider import Decision
     candle = {
         "time": [datetime(2026, 3, 25, 10, i) for i in range(20)],
         "open":  [1920.0] * 20,
@@ -49,31 +48,47 @@ def test_decide_called_when_trigger_fires():
         "close": [1922.0] * 20,
         "vol":   [1000.0] * 20,
     }
-    mock_decision = Decision(action="BUY", confidence=0.8)
+    mock_ai = MagicMock()
+    mock_ai.action = "BUY"
+    mock_ai.confidence = 0.8
+    mock_ai.sl = 1905.0
+    mock_ai.tp = 1945.0
+    mock_ai.error = None
+    mock_ai.reasoning = None
     mock_risk = MagicMock(approved=False, block_reason="TEST_BLOCK")
 
     with (
         patch("main.fetch_candles", return_value=pd.DataFrame(candle)),
+        patch("main.run_all", return_value={}),
         patch("main.compute_agg", return_value=MagicMock(buy_score=7.0, sell_score=2.0, signals={})),
         patch("main.classify_regime", return_value="TRENDING"),
-        patch("main.should_trigger", return_value=True),
         patch("main.sync_positions", return_value=([], [])),
-        patch("main.get_positions", return_value=[]),
         patch("main.get_kill_switch_state", return_value=False),
-        patch("main._decide", return_value=mock_decision) as mock_det_decide,
-        patch("main.calculate_sl_tp", return_value=(1905.0, 1945.0)),
+        patch("main.config") as mock_cfg,
+        patch("main.get_journal_context", return_value=""),
+        patch("main.build_prompt", return_value="test prompt"),
+        patch("main.decide", return_value=mock_ai) as mock_decide,
         patch("main.validate", return_value=mock_risk),
         patch("main.get_account_info", return_value={"balance": 10000.0}),
+        patch("main.execute", return_value=[(0,)]),
         patch("main.log_decision") as mock_log,
         patch("main.time") as mock_time,
     ):
+        # Configure config mock to enable hot_signal path
+        mock_cfg.POLL_INTERVAL_SECONDS = 1
+        mock_cfg.MT5_RECONNECT_RETRIES = 1
+        mock_cfg.MAX_CONCURRENT_TRADES = 10
+        mock_cfg.TRIGGER_MIN_SCORE = 6.0
+        mock_cfg.TRIGGER_MIN_SCORE_DIFF = 4.0
+        mock_cfg.AI_INTERVAL_MINUTES = 5
+        mock_cfg.DRY_RUN = True
         mock_time.sleep.side_effect = StopIteration
         try:
             run_loop()
         except StopIteration:
             pass
 
-    mock_det_decide.assert_called_once_with(7.0, 2.0)
+    mock_decide.assert_called_once_with("test prompt")
     assert mock_log.call_args.kwargs.get("trigger_fired") is True
     assert mock_log.call_args.kwargs.get("ai_action") == "BUY"
 

@@ -1,7 +1,13 @@
 from src.risk.engine import validate, RiskResult
+from src import config as _config
 
 
-def test_valid_buy_passes():
+def test_valid_buy_passes(monkeypatch):
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 3)
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
     result = validate(
         action="BUY", confidence=0.8, sl=1917.0, tp=1940.0,
         entry=1920.0, balance=10000.0, open_trades=1, kill_switch=False,
@@ -18,7 +24,8 @@ def test_returns_risk_result():
     assert isinstance(result, RiskResult)
 
 
-def test_kill_switch_blocks():
+def test_kill_switch_blocks(monkeypatch):
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 3)
     result = validate(
         action="BUY", confidence=0.9, sl=1910.0, tp=1940.0,
         entry=1920.0, balance=10000.0, open_trades=0, kill_switch=True,
@@ -27,7 +34,8 @@ def test_kill_switch_blocks():
     assert result.block_reason == "KILL_SWITCH_ACTIVE"
 
 
-def test_low_confidence_blocked():
+def test_low_confidence_blocked(monkeypatch):
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 3)
     result = validate(
         action="BUY", confidence=0.5, sl=1910.0, tp=1940.0,
         entry=1920.0, balance=10000.0, open_trades=1, kill_switch=False,
@@ -36,8 +44,10 @@ def test_low_confidence_blocked():
     assert result.block_reason == "LOW_CONFIDENCE"
 
 
-def test_sl_too_tight_blocked():
+def test_sl_too_tight_blocked(monkeypatch):
     # SL distance only $0.50 — below MIN_SL_USD=3.0
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
     result = validate(
         action="BUY", confidence=0.9, sl=1919.5, tp=1940.0,
         entry=1920.0, balance=10000.0, open_trades=0, kill_switch=False,
@@ -46,8 +56,10 @@ def test_sl_too_tight_blocked():
     assert result.block_reason == "INVALID_SL"
 
 
-def test_sl_too_wide_blocked():
+def test_sl_too_wide_blocked(monkeypatch):
     # SL distance = $60 — above MAX_SL_USD=50.0
+    monkeypatch.setattr(_config, "MAX_SL_USD", 50.0)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
     result = validate(
         action="BUY", confidence=0.9, sl=1860.0, tp=1980.0,
         entry=1920.0, balance=10000.0, open_trades=0, kill_switch=False,
@@ -56,8 +68,11 @@ def test_sl_too_wide_blocked():
     assert result.block_reason == "INVALID_SL"
 
 
-def test_below_min_lot_blocked():
+def test_below_min_lot_blocked(monkeypatch):
     # Tiny balance → computed lot below 0.01
+    monkeypatch.setattr(_config, "MIN_SL_USD", 3.0)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
     result = validate(
         action="BUY", confidence=0.9, sl=1910.0, tp=1940.0,
         entry=1920.0, balance=100.0, open_trades=0, kill_switch=False,
@@ -66,7 +81,8 @@ def test_below_min_lot_blocked():
     assert result.block_reason == "BELOW_MIN_LOT"
 
 
-def test_max_trades_blocks():
+def test_max_trades_blocks(monkeypatch):
+    monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 3)
     result = validate(
         action="BUY", confidence=0.9, sl=1910.0, tp=1940.0,
         entry=1920.0, balance=10000.0, open_trades=3, kill_switch=False,
@@ -75,17 +91,17 @@ def test_max_trades_blocks():
     assert result.block_reason == "MAX_TRADES_REACHED"
 
 
-def test_lot_sizing_correct():
+def test_lot_sizing_correct(monkeypatch):
     # balance=10000, risk=1%=$100, SL=10 USD → lot = 100/(10*100) = 0.10
+    monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
+    monkeypatch.setattr(_config, "MAX_SL_USD", 25.0)
+    monkeypatch.setattr(_config, "CONTRACT_SIZE", 100.0)
     result = validate(
         action="BUY", confidence=0.8, sl=1910.0, tp=1950.0,
         entry=1920.0, balance=10000.0, open_trades=0, kill_switch=False,
     )
     assert result.approved
     assert abs(result.lot_size - 0.10) < 0.01
-
-
-from src import config as _config
 
 
 # ── Forex (EURUSD) tests ──────────────────────────────────────────────────────

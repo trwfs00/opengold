@@ -76,6 +76,7 @@ def test_get_positions_returns_list():
     pos.price_open = 1920.0
     pos.sl = 1910.0
     pos.tp = 1940.0
+    pos.time = 1700000000  # scalar int for pd.to_datetime
 
     mock_mt5 = MagicMock()
     mock_mt5.ORDER_TYPE_BUY = 0

@@ -38,7 +38,7 @@ def test_signals_returns_latest_row(client):
 
 def test_decisions_returns_list(client):
     from datetime import datetime, timezone
-    row = (datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc), "TRENDING", 7.5, 1.2, True, "BUY", 0.85, 1900.0, 1950.0, None)
+    row = (datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc), "TRENDING", 7.5, 1.2, True, "BUY", 0.85, 1900.0, 1950.0, None, None)
     with patch("src.api.routes.decisions.execute", return_value=[row]):
         resp = client.get("/api/decisions?limit=1")
     assert resp.status_code == 200
