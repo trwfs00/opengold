@@ -117,15 +117,15 @@ export default function StatusBar({ status, onKillSwitch }: Props) {
   const ksActive = status.kill_switch_active
 
   return (
-    <div className="flex items-center justify-between px-5 h-9 bg-zinc-900 border-b border-zinc-800 text-xs font-mono">
-      <div className="flex items-center gap-5">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 sm:px-5 py-1.5 sm:py-0 sm:h-9 bg-zinc-900 border-b border-zinc-800 text-xs font-mono">
+      <div className="flex items-center gap-4 sm:gap-5 min-w-0">
         <BotTabSwitcher />
         <span className={`flex items-center gap-1.5 font-semibold tracking-wide ${alive ? 'text-lime-400' : 'text-red-400'}`}>
           <span className={`inline-block w-1.5 h-1.5 rounded-full ${alive ? 'bg-lime-400 animate-pulse' : 'bg-red-400'}`} />
           {alive ? t.botAlive : t.botOffline}
         </span>
         {status.ai_model && (
-          <span className="flex items-center gap-1 text-zinc-500">
+          <span className="hidden sm:flex items-center gap-1 text-zinc-500">
             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
               <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/>
             </svg>
@@ -139,7 +139,7 @@ export default function StatusBar({ status, onKillSwitch }: Props) {
           </span>
         )}
         {timers !== null && (
-          <span className="flex items-center gap-2.5 font-mono text-[10px]">
+          <span className="hidden md:flex items-center gap-2.5 font-mono text-[10px]">
             {/* HOT cooldown — 60s */}
             <span className="flex items-center gap-1">
               <span className={`font-bold ${timers.hotLeft === 0 ? 'text-lime-400' : 'text-zinc-600'}`}>HOT</span>
@@ -161,7 +161,7 @@ export default function StatusBar({ status, onKillSwitch }: Props) {
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 ml-auto">
         {/* Language toggle */}
         <div className="flex items-center rounded overflow-hidden border border-zinc-700">
           <button

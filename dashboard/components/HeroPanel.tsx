@@ -40,15 +40,15 @@ export default function HeroPanel({ candles, summary }: Props) {
   const decimals = 5
 
   return (
-    <section className="px-5 pt-5 pb-8">
+    <section className="px-3 sm:px-5 pt-4 sm:pt-5 pb-6 sm:pb-8">
       {/* Top row: symbol + price | countdown */}
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
         <div>
           <p className={`${meta.accent} text-[10px] font-mono font-semibold uppercase tracking-[0.2em] mb-1.5`}>
             {meta.symbol} {meta.label}
           </p>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span className={`${meta.accent} text-5xl font-mono font-bold tabular-nums tracking-tight leading-none`}>
+            <span className={`${meta.accent} text-4xl sm:text-5xl font-mono font-bold tabular-nums tracking-tight leading-none`}>
               {price?.toFixed(decimals) ?? '—'}
             </span>
             {change !== null && changePct !== null && (
@@ -62,7 +62,7 @@ export default function HeroPanel({ candles, summary }: Props) {
           </p>
         </div>
 
-        <div className="text-right shrink-0 flex flex-col items-end gap-2">
+        <div className="text-right sm:text-right shrink-0 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3 sm:gap-2">
           <div>
             <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">
               {t.nextAnalysis}
@@ -76,9 +76,9 @@ export default function HeroPanel({ candles, summary }: Props) {
       </div>
 
       {/* Stats row */}
-      <div className="flex items-stretch gap-0 divide-x divide-zinc-800/70">
+      <div className="grid grid-cols-2 sm:flex sm:items-stretch sm:divide-x sm:divide-zinc-800/70 gap-3 sm:gap-0">
         {/* TODAY W/L/H */}
-        <div className="pr-6">
+        <div className="sm:pr-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.today}</p>
           <p className="font-mono text-sm font-semibold leading-snug">
             <span className={meta.accent}>{summary?.today_buy ?? '—'}</span>
@@ -91,7 +91,7 @@ export default function HeroPanel({ candles, summary }: Props) {
         </div>
 
         {/* ALL-TIME */}
-        <div className="px-6">
+        <div className="sm:px-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.allTime}</p>
           <p className="text-zinc-100 font-mono text-sm font-semibold leading-snug">
             {summary?.all_time_decisions ?? '—'}
@@ -100,7 +100,7 @@ export default function HeroPanel({ candles, summary }: Props) {
         </div>
 
         {/* DISCIPLINE */}
-        <div className="px-6">
+        <div className="sm:px-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.discipline}</p>
           <p className="text-zinc-100 font-mono text-sm font-semibold leading-snug">
             {summary?.discipline_hold_rate != null
@@ -111,7 +111,7 @@ export default function HeroPanel({ candles, summary }: Props) {
         </div>
 
         {/* CONFLUENCE */}
-        <div className="pl-6">
+        <div className="sm:pl-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.confluence}</p>
           <p className="text-zinc-100 font-mono text-sm font-semibold leading-snug">
             {summary?.confluence_avg?.toFixed(1) ?? '—'}

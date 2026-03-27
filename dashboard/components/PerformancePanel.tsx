@@ -81,7 +81,7 @@ export default function PerformancePanel({ stats, account }: Props) {
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <h2 className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
             {t.performance}
@@ -98,7 +98,7 @@ export default function PerformancePanel({ stats, account }: Props) {
           </button>
         </div>
         {account && !account.error && (
-          <div className="flex items-center gap-5 text-[10px] font-mono text-zinc-500">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-[10px] font-mono text-zinc-500">
             <span>
               {t.balance}{' '}
               <span className="text-zinc-200 font-semibold tabular-nums">
@@ -117,7 +117,8 @@ export default function PerformancePanel({ stats, account }: Props) {
       </div>
 
       {/* Stats ticker row */}
-      <div className="flex items-stretch divide-x divide-zinc-800 mb-4">
+      <div className="overflow-x-auto -mx-4 px-4 mb-4">
+        <div className="flex items-stretch divide-x divide-zinc-800 min-w-max">
         <StatTile
           label={t.winRate}
           value={stats?.win_rate != null ? `${(stats.win_rate * 100).toFixed(1)}%` : '—'}
@@ -146,10 +147,12 @@ export default function PerformancePanel({ stats, account }: Props) {
             ? (stats.total_pnl >= 0 ? 'text-amber-400' : 'text-red-400')
             : 'text-zinc-500'}
         />
+        </div>
       </div>
 
       {/* Quality metrics row: MDD · Profit Factor · Expectancy */}
-      <div className="flex items-stretch divide-x divide-zinc-800 mb-4 border border-zinc-800/60 rounded bg-zinc-900/50 px-0">
+      <div className="overflow-x-auto -mx-4 px-4 mb-4">
+        <div className="flex items-stretch divide-x divide-zinc-800 border border-zinc-800/60 rounded bg-zinc-900/50 px-0 min-w-max">
         <StatTile
           label={t.maxDrawdown}
           value={stats?.max_drawdown != null ? `-$${stats.max_drawdown.toFixed(2)}` : '—'}
@@ -174,6 +177,7 @@ export default function PerformancePanel({ stats, account }: Props) {
             : 'text-zinc-500'}
           sublabel={stats?.expectancy != null ? t.perTrade : undefined}
         />
+        </div>
       </div>
 
       {/* Last 15 trades */}

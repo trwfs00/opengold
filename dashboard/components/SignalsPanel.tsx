@@ -67,7 +67,7 @@ export default function SignalsPanel({ signals }: Props) {
       ) : (
         <>
           {/* Regime + score row */}
-          <div className="flex items-end gap-6 mb-4">
+          <div className="flex flex-wrap items-end gap-4 sm:gap-6 mb-4">
             <div>
               <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-wider mb-0.5">{t.regime}</p>
               <div className="flex items-center gap-1.5">
@@ -100,7 +100,7 @@ export default function SignalsPanel({ signals }: Props) {
 
           {/* Per-strategy signal cards */}
           {signals.signals && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {Object.entries(signals.signals).map(([name, data]) => {
                 const isBuy = data.signal === 'BUY'
                 const isSell = data.signal === 'SELL'
