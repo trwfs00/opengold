@@ -64,6 +64,9 @@ export default function DecisionsTable() {
           {t.decisionsTitle}
         </h2>
         <span className="text-zinc-700 text-[10px] font-mono mr-auto">{t.rows(decisions.length)}</span>
+        <span className="text-zinc-600 text-[10px] font-mono">
+          min conf: <span className="text-zinc-400">{(meta.minConfidence * 100).toFixed(0)}%</span>
+        </span>
         <input
           type="date"
           value={dateFrom}
@@ -126,14 +129,17 @@ export default function DecisionsTable() {
                     </td>
                     <td className="pr-3 tabular-nums">
                       {row.ai_confidence != null ? `${(row.ai_confidence * 100).toFixed(0)}%` : '—'}
+                      {row.risk_block_reason && (
+                        <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-red-900/40 text-red-400 border border-red-800/50">BLOCKED</span>
+                      )}
                     </td>
                     <td className="text-zinc-500 font-mono text-[10px] max-w-xs">
-                      {row.ai_reasoning
-                        ? <span className="italic text-zinc-400">{row.ai_reasoning}</span>
-                        : row.risk_block_reason
-                        ? <span className="text-zinc-600">{row.risk_block_reason}</span>
-                        : null
-                      }
+                      {row.risk_block_reason && (
+                        <span className="text-red-500/70 font-semibold mr-1.5">[{row.risk_block_reason}]</span>
+                      )}
+                      {row.ai_reasoning && (
+                        <span className="italic text-zinc-400">{row.ai_reasoning}</span>
+                      )}
                     </td>
                   </tr>
                 ))}

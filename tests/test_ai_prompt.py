@@ -88,7 +88,7 @@ def test_gold_prompt_mentions_gold_role(monkeypatch):
 def test_forex_prompt_mentions_forex_role(monkeypatch):
     """Forex mode prompt describes a forex scalper role."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
     monkeypatch.setattr(_config, "TP_PIPS_MIN", 4.0)
@@ -103,14 +103,14 @@ def test_forex_prompt_mentions_forex_role(monkeypatch):
         price=1.08500,
         atr=0.00120,
     )
-    assert "forex" in result.lower() or "EURUSD" in result
+    assert "forex" in result.lower() or "GBPUSD" in result
     assert "pips" in result.lower()
 
 
 def test_forex_prompt_uses_correct_price_format(monkeypatch):
     """Forex price should appear with 5 decimal places."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
     monkeypatch.setattr(_config, "TP_PIPS_MIN", 4.0)

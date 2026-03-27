@@ -11,6 +11,8 @@ _env_parser = argparse.ArgumentParser(add_help=False)
 _env_parser.add_argument("--env", default=".env",
                          help="ENV profile file (e.g. gold.env or forex.env)")
 _env_args, _ = _env_parser.parse_known_args()
+import os as _os
+_os.environ["ENV_FILE"] = _env_args.env          # propagate to config.py
 load_dotenv(_env_args.env, override=True)
 
 # ── Phase 2: import src modules (they now see the correct env values) ─────────
@@ -23,6 +25,7 @@ from src.aggregator.scorer import aggregate as compute_agg
 from collections import Counter
 from src.risk.engine import validate
 from src.executor.orders import place_order, sync_positions
+from src.executor.position_manager import manage_positions
 from src.logger.writer import (
     log_decision, log_trade,
     get_kill_switch_state, set_kill_switch,
@@ -63,12 +66,12 @@ def _check_daily_reset(balance: float):
         logger.info(f"Daily start balance reset for {today_utc}: {balance}")
 
 
-def _reconcile_missed_closes():
-    """After reconnect, pull last-hour deals from MT5 history and log any missed closes."""
+def _reconcile_missed_closes(lookback_hours: int = 24):
+    """After reconnect or startup, pull recent deals from MT5 history and log any missed closes."""
     now = datetime.now(timezone.utc)
-    deals = get_history_deals(now - timedelta(hours=1), now)
+    deals = get_history_deals(now - timedelta(hours=lookback_hours), now)
     for deal in deals:
-        if deal["entry"] == 1:   # 1 = OUT (closing deal)
+        if deal["entry"] == 1 and abs(deal["profit"]) > 0.01:   # skip breakeven/zero-profit artifacts
             # MT5 deal type: 0=BUY deal (closes a SELL position), 1=SELL deal (closes BUY position)
             original_direction = "SELL" if deal["type"] == 0 else "BUY"
             check_and_log_trade_no_duplicate(
@@ -176,6 +179,16 @@ def run_loop():
             regime = classify_regime(candles)
             signals = run_all(candles, regime)
             agg = compute_agg(signals, regime)
+
+            # ── Manage open positions (trailing stop + AI re-evaluation) ──
+            if position_snapshot and not kill:
+                manage_positions(
+                    position_snapshot, candles, regime,
+                    agg.buy_score, agg.sell_score,
+                )
+                # Re-sync in case manage_positions closed something
+                _, position_snapshot = sync_positions(position_snapshot, get_positions)
+                open_trades = len(position_snapshot)
 
             # Accumulate rolling score window
             score_buffer.append({"buy": agg.buy_score, "sell": agg.sell_score, "regime": regime})
@@ -320,6 +333,8 @@ def main():
         return
     if config.DRY_RUN:
         logger.warning("*** DRY_RUN MODE — orders will NOT be sent to MT5 ***")
+    logger.info("Reconciling any trades closed while bot was offline…")
+    _reconcile_missed_closes()
     run_loop()
 
 

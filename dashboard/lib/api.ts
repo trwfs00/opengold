@@ -84,6 +84,9 @@ export interface StatsData {
   current_streak: number
   avg_rr: number | null | undefined
   last_15: string[]
+  max_drawdown: number | null | undefined
+  profit_factor: number | null | undefined
+  expectancy: number | null | undefined
 }
 
 export interface StatusData {
@@ -96,8 +99,8 @@ export interface StatusData {
 }
 
 export interface SummaryData {
-  today_win: number
-  today_loss: number
+  today_buy: number
+  today_sell: number
   today_hold: number
   all_time_decisions: number
   discipline_hold_rate: number | null
@@ -108,6 +111,18 @@ export interface RegimeStats {
   stats: Record<string, { count: number; pct: number }>
   total: number
   error?: string
+}
+
+export interface PositionEventRow {
+  id: number
+  time: string
+  ticket: number
+  event_type: 'TRAIL_BE' | 'TRAIL_SL' | 'REEVAL_HOLD' | 'REEVAL_CLOSE'
+  direction: string | null
+  old_sl: number | null
+  new_sl: number | null
+  price: number | null
+  reasoning: string | null
 }
 
 async function get<T>(path: string, bot: 'gold' | 'forex'): Promise<T> {
@@ -148,6 +163,9 @@ export const fetchSummary = (bot: 'gold' | 'forex') =>
 export const fetchRegimeStats = (bot: 'gold' | 'forex') =>
   get<RegimeStats>('/regime-stats', bot)
 
+export const fetchPositionEvents = (bot: 'gold' | 'forex', limit = 200) =>
+  get<{ data: PositionEventRow[] }>(`/position-events?limit=${limit}`, bot).then(r => r.data ?? [])
+
 export async function postKillSwitch(bot: 'gold' | 'forex', active: boolean): Promise<{ active: boolean }> {
   const res = await fetch(`${BASE(bot)}/killswitch`, {
     method: 'POST',
@@ -155,5 +173,14 @@ export async function postKillSwitch(bot: 'gold' | 'forex', active: boolean): Pr
     body: JSON.stringify({ active }),
   })
   if (!res.ok) throw new Error(`killswitch: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function postSyncTrades(bot: 'gold' | 'forex', lookbackHours = 24): Promise<{ synced: number }> {
+  const res = await fetch(`${BASE(bot)}/sync-trades?lookback_hours=${lookbackHours}`, {
+    method: 'POST',
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`sync-trades: HTTP ${res.status}`)
   return res.json()
 }

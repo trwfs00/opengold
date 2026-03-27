@@ -4,6 +4,9 @@ export const BOT_META = {
   gold: {
     symbol: 'XAUUSDM',
     label: 'GOLD',
+    timeframe: 'M1',
+    intervalMin: 1,
+    minConfidence: 0.65,
     accent: 'text-amber-400',
     accentDim: 'text-amber-400/90',
     accentBg: 'bg-amber-500/20',
@@ -13,8 +16,11 @@ export const BOT_META = {
     hex: '#f59e0b',
   },
   forex: {
-    symbol: 'EURUSD',
-    label: 'FOREX',
+    symbol: 'GBPUSD',
+    label: 'GBP/USD',
+    timeframe: 'M5',
+    intervalMin: 5,
+    minConfidence: 0.70,
     accent: 'text-blue-400',
     accentDim: 'text-blue-400/90',
     accentBg: 'bg-blue-500/20',

@@ -8,6 +8,11 @@ interface Props {
   stats: StatsData | null
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dedupAsc(data: any[]) {
+  return data.filter((d: any, i: number) => i === 0 || d.time > data[i - 1].time)
+}
+
 export default function StatsPanel({ stats }: Props) {
   const { bot } = useBot()
   const meta = BOT_META[bot]
@@ -54,7 +59,7 @@ export default function StatsPanel({ stats }: Props) {
       seriesRef.current = series
 
       if (stats?.pnl_curve?.length) {
-        series.setData(stats.pnl_curve as any)
+        series.setData(dedupAsc(stats.pnl_curve as any))
         chart.timeScale().fitContent()
       }
     })
@@ -70,7 +75,7 @@ export default function StatsPanel({ stats }: Props) {
 
   useEffect(() => {
     if (seriesRef.current && stats?.pnl_curve?.length) {
-      seriesRef.current.setData(stats.pnl_curve as any)
+      seriesRef.current.setData(dedupAsc(stats.pnl_curve as any))
       chartRef.current?.timeScale().fitContent()
     }
   }, [stats?.pnl_curve])

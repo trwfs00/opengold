@@ -74,6 +74,22 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 MT5_RECONNECT_RETRIES = int(os.getenv("MT5_RECONNECT_RETRIES", "3"))
 MT5_RECONNECT_DELAY_BASE = int(os.getenv("MT5_RECONNECT_DELAY_BASE", "2"))
 
+# Position Manager (trailing stop + AI re-evaluation)
+TRAIL_ENABLED = os.getenv("TRAIL_ENABLED", "true").lower() == "true"
+# Move SL to breakeven when unrealised profit reaches this fraction of TP distance
+TRAIL_BE_RATIO = float(os.getenv("TRAIL_BE_RATIO", "0.5"))
+# After breakeven: trail SL at (price − ATR × multiplier) for BUY, inverse for SELL
+TRAIL_ATR_MULTIPLIER = float(os.getenv("TRAIL_ATR_MULTIPLIER", "1.5"))
+# USD profit floor: when unrealised PnL >= this value, force breakeven regardless of TP
+# (0 = disabled; set to a value like 50-100 so no-TP positions still get trailed)
+TRAIL_MIN_PROFIT_USD = float(os.getenv("TRAIL_MIN_PROFIT_USD", "0"))
+# Re-evaluate open positions with AI every N minutes (0 = disabled)
+REEVAL_INTERVAL_MINUTES = int(os.getenv("REEVAL_INTERVAL_MINUTES", "5"))
+# Minimum counter-signal strength to trigger AI re-evaluation
+REEVAL_MIN_COUNTER_SCORE = float(os.getenv("REEVAL_MIN_COUNTER_SCORE", "5.0"))
+# Partial close: fraction of the position to close when AI says PARTIAL_CLOSE (0 = disabled)
+PARTIAL_CLOSE_RATIO = float(os.getenv("PARTIAL_CLOSE_RATIO", "0.5"))
+
 # Dashboard API  (API_PORT overrides DASHBOARD_API_PORT for multi-bot support)
 DASHBOARD_API_HOST = os.getenv("DASHBOARD_API_HOST", "127.0.0.1")
 DASHBOARD_API_PORT = int(os.getenv("API_PORT", os.getenv("DASHBOARD_API_PORT", "8000")))

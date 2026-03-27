@@ -4,6 +4,7 @@ import { CandleBar, SummaryData } from '@/lib/api'
 import { useBot } from '@/context/BotContext'
 import { BOT_META } from '@/lib/bot-meta'
 import { useT } from '@/lib/i18n-context'
+import RiskCalculator from '@/components/RiskCalculator'
 
 interface Props {
   candles: CandleBar[]
@@ -36,7 +37,7 @@ export default function HeroPanel({ candles, summary }: Props) {
   const change = price !== undefined && prev?.close !== undefined ? price - prev.close : null
   const changePct = change !== null && prev?.close ? (change / prev.close) * 100 : null
   const positive = change === null || change >= 0
-  const decimals = bot === 'forex' ? 5 : 2
+  const decimals = 5
 
   return (
     <section className="px-5 pt-5 pb-8">
@@ -57,17 +58,20 @@ export default function HeroPanel({ candles, summary }: Props) {
             )}
           </div>
           <p className="text-zinc-600 text-xs font-mono mt-2">
-            {t.strategies}
+            {t.strategies(meta.timeframe, meta.intervalMin)}
           </p>
         </div>
 
-        <div className="text-right shrink-0">
-          <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">
-            {t.nextAnalysis}
-          </p>
-          <p className={`${meta.accentDim} font-mono text-3xl font-bold tabular-nums leading-none`}>
-            {m}:{String(s).padStart(2, '0')}
-          </p>
+        <div className="text-right shrink-0 flex flex-col items-end gap-2">
+          <div>
+            <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">
+              {t.nextAnalysis}
+            </p>
+            <p className={`${meta.accentDim} font-mono text-3xl font-bold tabular-nums leading-none`}>
+              {m}:{String(s).padStart(2, '0')}
+            </p>
+          </div>
+          <RiskCalculator currentPrice={price} />
         </div>
       </div>
 
@@ -77,13 +81,13 @@ export default function HeroPanel({ candles, summary }: Props) {
         <div className="pr-6">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-1">{t.today}</p>
           <p className="font-mono text-sm font-semibold leading-snug">
-            <span className={meta.accent}>{summary?.today_win ?? '—'}</span>
+            <span className={meta.accent}>{summary?.today_buy ?? '—'}</span>
             <span className="text-zinc-700"> / </span>
-            <span className="text-red-400">{summary?.today_loss ?? '—'}</span>
+            <span className="text-red-400">{summary?.today_sell ?? '—'}</span>
             <span className="text-zinc-700"> / </span>
             <span className="text-zinc-400">{summary?.today_hold ?? '—'}</span>
           </p>
-          <p className="text-zinc-700 text-[9px] font-mono uppercase tracking-wider mt-0.5">{t.wlhLabel}</p>
+          <p className="text-zinc-700 text-[9px] font-mono uppercase tracking-wider mt-0.5">{t.bshLabel}</p>
         </div>
 
         {/* ALL-TIME */}

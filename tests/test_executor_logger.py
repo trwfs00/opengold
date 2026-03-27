@@ -37,6 +37,11 @@ def test_log_decision_writes_row():
     log_decision("TRENDING", 7.2, 1.1, True, "BUY", 0.8, 1910.0, 1940.0, None)
     after = execute("SELECT COUNT(*) FROM decisions", fetch=True)[0][0]
     assert after == before + 1
+    # cleanup: remove the test row
+    execute(
+        "DELETE FROM decisions WHERE buy_score = 7.2 AND sell_score = 1.1 "
+        "AND ai_sl = 1910.0 AND ai_tp = 1940.0"
+    )
 
 
 def test_log_trade_writes_row():
@@ -45,6 +50,11 @@ def test_log_trade_writes_row():
     log_trade(now, now, "BUY", 0.01, 1920.0, 1930.0, 1910.0, 1940.0, 100.0)
     after = execute("SELECT COUNT(*) FROM trades", fetch=True)[0][0]
     assert after == before + 1
+    # cleanup: remove the test row
+    execute(
+        "DELETE FROM trades WHERE open_price = 1920.0 AND close_price = 1930.0 "
+        "AND pnl = 100.0"
+    )
 
 
 def test_kill_switch_round_trip():

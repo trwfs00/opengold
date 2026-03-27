@@ -1,13 +1,19 @@
 'use client'
-import { useEffect, useRef } from 'react'
-import { StatsData, AccountInfo } from '@/lib/api'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { StatsData, AccountInfo, fetchAccount } from '@/lib/api'
 import { useT } from '@/lib/i18n-context'
 import { useBot } from '@/context/BotContext'
 import { BOT_META } from '@/lib/bot-meta'
+import PerformanceSummaryModal from '@/components/PerformanceSummaryModal'
 
 interface Props {
   stats: StatsData | null
   account: AccountInfo | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dedupAsc(data: any[]) {
+  return data.filter((d: any, i: number) => i === 0 || d.time > data[i - 1].time)
 }
 
 export default function PerformancePanel({ stats, account }: Props) {
@@ -36,7 +42,7 @@ export default function PerformancePanel({ stats, account }: Props) {
       chartRef.current = chart
       seriesRef.current = series
       if (stats?.pnl_curve?.length) {
-        series.setData(stats.pnl_curve as any)
+        series.setData(dedupAsc(stats.pnl_curve as any))
         chart.timeScale().fitContent()
       }
     })
@@ -47,24 +53,50 @@ export default function PerformancePanel({ stats, account }: Props) {
 
   useEffect(() => {
     if (seriesRef.current && stats?.pnl_curve?.length) {
-      seriesRef.current.setData(stats.pnl_curve as any)
+      seriesRef.current.setData(dedupAsc(stats.pnl_curve as any))
       chartRef.current?.timeScale().fitContent()
     }
   }, [stats?.pnl_curve])
+
+  // 1s local poll for live open positions
+  const [liveAccount, setLiveAccount] = useState<AccountInfo | null>(account)
+  const loadAccount = useCallback(async () => {
+    try { setLiveAccount(await fetchAccount(bot)) } catch { /* keep last */ }
+  }, [bot])
+  useEffect(() => { setLiveAccount(account) }, [account])
+  useEffect(() => {
+    const id = setInterval(loadAccount, 1000)
+    return () => clearInterval(id)
+  }, [loadAccount])
 
   const streak = stats?.current_streak ?? 0
   const streakLabel = streak > 0 ? `${streak}W` : streak < 0 ? `${Math.abs(streak)}L` : '—'
   const streakColor = streak > 0 ? 'text-amber-400' : streak < 0 ? 'text-red-400' : 'text-zinc-500'
   const streakSub = streak > 0 ? t.winStreak : streak < 0 ? t.lossStreak : undefined
   const openCount = account?.positions?.length ?? 0
+  const decimal = bot === 'forex' ? 5 : 2
+
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
-          {t.performance}
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-zinc-500 text-[10px] font-mono font-semibold uppercase tracking-widest">
+            {t.performance}
+          </h2>
+          <button
+            onClick={() => setSummaryOpen(true)}
+            title={t.perfModalTitle}
+            className="text-zinc-600 hover:text-zinc-400 transition-colors leading-none"
+            aria-label={t.perfModalTitle}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+              <path fillRule="evenodd" d="M15 8A7 7 0 1 1 1 8a7 7 0 0 1 14 0ZM9 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6.75 8a.75.75 0 0 0 0 1.5h.75v1.75a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8.25 8h-1.5Z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
         {account && !account.error && (
           <div className="flex items-center gap-5 text-[10px] font-mono text-zinc-500">
             <span>
@@ -116,6 +148,34 @@ export default function PerformancePanel({ stats, account }: Props) {
         />
       </div>
 
+      {/* Quality metrics row: MDD · Profit Factor · Expectancy */}
+      <div className="flex items-stretch divide-x divide-zinc-800 mb-4 border border-zinc-800/60 rounded bg-zinc-900/50 px-0">
+        <StatTile
+          label={t.maxDrawdown}
+          value={stats?.max_drawdown != null ? `-$${stats.max_drawdown.toFixed(2)}` : '—'}
+          color={stats?.max_drawdown != null
+            ? (stats.max_drawdown === 0 ? 'text-zinc-500' : stats.max_drawdown < 50 ? 'text-amber-400' : 'text-red-400')
+            : 'text-zinc-500'}
+        />
+        <StatTile
+          label={t.profitFactor}
+          value={stats?.profit_factor != null ? stats.profit_factor.toFixed(2) : '—'}
+          color={stats?.profit_factor != null
+            ? (stats.profit_factor >= 1.5 ? 'text-lime-400' : stats.profit_factor >= 1.0 ? 'text-amber-400' : 'text-red-400')
+            : 'text-zinc-500'}
+        />
+        <StatTile
+          label={t.expectancy}
+          value={stats?.expectancy != null
+            ? `${stats.expectancy >= 0 ? '+' : ''}${stats.expectancy.toFixed(2)}`
+            : '—'}
+          color={stats?.expectancy != null
+            ? (stats.expectancy > 0 ? 'text-lime-400' : 'text-red-400')
+            : 'text-zinc-500'}
+          sublabel={stats?.expectancy != null ? t.perTrade : undefined}
+        />
+      </div>
+
       {/* Last 15 trades */}
       {stats && stats.last_15.length > 0 && (
         <div className="mb-4">
@@ -145,11 +205,11 @@ export default function PerformancePanel({ stats, account }: Props) {
         <p className="text-zinc-600 text-xs font-mono mb-4">{t.noClosedTrades}</p>
       )}
 
-      {/* Open positions (from AccountPanel) */}
-      {account?.positions && account.positions.length > 0 && (
+      {/* Open positions (live 1s poll) */}
+      {liveAccount?.positions && liveAccount.positions.length > 0 && (
         <div className="border-t border-zinc-800 pt-4 space-y-2">
           <p className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest mb-2">{t.openPositions}</p>
-          {account.positions.map(p => {
+          {liveAccount!.positions!.map(p => {
             const isBuy = p.direction === 'BUY'
             const pnlPos = p.unrealized_pnl >= 0
             const openedAt = p.open_time
@@ -180,15 +240,15 @@ export default function PerformancePanel({ stats, account }: Props) {
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-[10px]">
-                  <div><p className="text-zinc-600 mb-0.5">{t.entry}</p><p className="text-zinc-200 tabular-nums">{p.open_price.toFixed(2)}</p></div>
-                  <div><p className="text-zinc-600 mb-0.5">{t.now}</p><p className={`tabular-nums ${pnlPos ? 'text-amber-400' : 'text-red-400'}`}>{p.current_price.toFixed(2)}</p></div>
-                  <div><p className="text-zinc-600 mb-0.5">SL</p><p className="text-red-400/70 tabular-nums">{p.sl > 0 ? p.sl.toFixed(2) : '—'}</p></div>
-                  <div><p className="text-zinc-600 mb-0.5">TP</p><p className="text-amber-400/70 tabular-nums">{p.tp > 0 ? p.tp.toFixed(2) : '—'}</p></div>
+                  <div><p className="text-zinc-600 mb-0.5">{t.entry}</p><p className="text-zinc-200 tabular-nums">{p.open_price.toFixed(decimal)}</p></div>
+                  <div><p className="text-zinc-600 mb-0.5">{t.now}</p><p className={`tabular-nums ${pnlPos ? 'text-amber-400' : 'text-red-400'}`}>{p.current_price.toFixed(decimal)}</p></div>
+                  <div><p className="text-zinc-600 mb-0.5">SL</p><p className="text-red-400/70 tabular-nums">{p.sl > 0 ? p.sl.toFixed(decimal) : '—'}</p></div>
+                  <div><p className="text-zinc-600 mb-0.5">TP</p><p className="text-amber-400/70 tabular-nums">{p.tp > 0 ? p.tp.toFixed(decimal) : '—'}</p></div>
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
                   <span className="text-zinc-600 text-[10px]">Opened {openedAt}</span>
                   <span className={`text-[10px] tabular-nums ${pnlPos ? 'text-amber-500/60' : 'text-red-500/60'}`}>
-                    {(p.current_price - p.open_price >= 0 ? '+' : '')}{(p.current_price - p.open_price).toFixed(2)} pts
+                    {(p.current_price - p.open_price >= 0 ? '+' : '')}{(p.current_price - p.open_price).toFixed(decimal)} pts
                   </span>
                 </div>
               </div>
@@ -196,6 +256,12 @@ export default function PerformancePanel({ stats, account }: Props) {
           })}
         </div>
       )}
+
+      <PerformanceSummaryModal
+        stats={stats}
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+      />
     </section>
   )
 }

@@ -24,7 +24,7 @@ def test_status_bot_alive(client):
 
 
 def test_status_bot_offline(client):
-    stale = datetime.now(timezone.utc) - timedelta(seconds=120)
+    stale = datetime.now(timezone.utc) - timedelta(hours=1)
     with patch("src.api.routes.status.execute", return_value=[(stale,)]):
         with patch("src.api.routes.status.get_kill_switch_state", return_value=False):
             resp = client.get("/api/status")

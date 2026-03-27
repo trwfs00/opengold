@@ -104,21 +104,20 @@ def test_lot_sizing_correct(monkeypatch):
     assert abs(result.lot_size - 0.10) < 0.01
 
 
-# ── Forex (EURUSD) tests ──────────────────────────────────────────────────────
+# ── Forex (GBPUSD) tests ──────────────────────────────────────────────────────
 
 def test_forex_valid_buy_passes(monkeypatch):
-    """EURUSD buy with 4-pip SL and 5-pip TP should be approved."""
+    """GBPUSD buy with 4-pip SL and 6-pip TP (ratio 1.5x) should be approved."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
     monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
-    # entry=1.08500, sl=1.08460 (4 pips), tp=1.08550 (5 pips)
-    # RR check: 5 >= SL_PIPS_MIN(3) * MIN_RR_RATIO(1.3) = 3.9 ✓
+    # entry=1.08500, sl=1.08460 (4 pips), tp=1.08560 (6 pips) → ratio=1.5x ✓
     result = validate(
         action="BUY", confidence=0.8,
-        sl=1.08460, tp=1.08550,
+        sl=1.08460, tp=1.08560,
         entry=1.08500,
         balance=10000.0, open_trades=0, kill_switch=False,
     )
@@ -129,16 +128,17 @@ def test_forex_valid_buy_passes(monkeypatch):
 def test_forex_lot_size_correct(monkeypatch):
     """Forex lot = risk_amount / (sl_pips * pip_value_per_lot)."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "RISK_PER_TRADE", 0.01)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
     monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
     # risk=$100 (1% of $10000), SL=4 pips, PipValue=$10 → lot=100/(4*10)=2.50
+    # tp=1.08560 (6 pips) → ratio=1.5x ≥ 1.3 ✓
     result = validate(
         action="BUY", confidence=0.8,
-        sl=1.08460, tp=1.08550,
+        sl=1.08460, tp=1.08560,
         entry=1.08500,
         balance=10000.0, open_trades=0, kill_switch=False,
     )
@@ -148,7 +148,7 @@ def test_forex_lot_size_correct(monkeypatch):
 def test_forex_sl_too_tight_blocked(monkeypatch):
     """SL < SL_PIPS_MIN should return INVALID_SL for Forex."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
@@ -167,7 +167,7 @@ def test_forex_sl_too_tight_blocked(monkeypatch):
 def test_forex_sl_too_wide_blocked(monkeypatch):
     """SL > SL_PIPS_MAX should return INVALID_SL for Forex."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
@@ -186,7 +186,7 @@ def test_forex_sl_too_wide_blocked(monkeypatch):
 def test_forex_tp_fails_rr_ratio(monkeypatch):
     """TP that doesn't satisfy MIN_RR_RATIO should return INVALID_TP for Forex."""
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
@@ -266,10 +266,10 @@ def test_forex_jpy_pip_size(monkeypatch):
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)
     monkeypatch.setattr(_config, "MIN_RR_RATIO", 1.3)
-    # entry=150.000, sl=149.960 (4 JPY pips = 0.04), tp=150.050 (5 JPY pips = 0.05)
+    # entry=150.000, sl=149.960 (4 JPY pips = 0.04), tp=150.060 (6 JPY pips = 0.06) → ratio=1.5x ≥ 1.3 ✓
     result = validate(
         action="BUY", confidence=0.8,
-        sl=149.960, tp=150.050,
+        sl=149.960, tp=150.060,
         entry=150.000,
         balance=10000.0, open_trades=0, kill_switch=False,
     )
@@ -372,7 +372,7 @@ def test_drawdown_forex_3_percent(monkeypatch):
     monkeypatch.setattr(_config, "DAILY_DRAWDOWN_LIMIT", 0.03)
     monkeypatch.setattr(_config, "MAX_CONCURRENT_TRADES", 10)
     monkeypatch.setattr(_config, "CONTRACT_SIZE", 100_000)
-    monkeypatch.setattr(_config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(_config, "SYMBOL", "GBPUSD")
     monkeypatch.setattr(_config, "PIP_VALUE_PER_LOT", 10.0)
     monkeypatch.setattr(_config, "SL_PIPS_MIN", 3.0)
     monkeypatch.setattr(_config, "SL_PIPS_MAX", 5.0)

@@ -50,7 +50,33 @@ def get_stats():
     pnl_curve = []
     for close_time, pnl, _ in rows:
         cumulative += pnl
-        pnl_curve.append({"time": int(close_time.timestamp()), "value": round(cumulative, 2)})
+        t = int(close_time.timestamp())
+        # lightweight-charts requires strictly ascending times; merge duplicates
+        if pnl_curve and pnl_curve[-1]["time"] >= t:
+            pnl_curve[-1]["value"] = round(cumulative, 2)
+        else:
+            pnl_curve.append({"time": t, "value": round(cumulative, 2)})
+
+    # Max Drawdown: largest peak-to-trough drop in cumulative P&L
+    peak = 0.0
+    max_dd = 0.0
+    for pt in pnl_curve:
+        v = pt["value"]
+        if v > peak:
+            peak = v
+        dd = peak - v
+        if dd > max_dd:
+            max_dd = dd
+
+    # Profit Factor = gross_profit / |gross_loss|  (None if no losses)
+    gross_profit = sum(w for w in wins if w > 0)
+    gross_loss = abs(sum(l for l in losses if l < 0))
+    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else None
+
+    # Expectancy = expected P&L per trade
+    expectancy = round(
+        (win_rate * avg_win) + ((1 - win_rate) * avg_loss), 2
+    ) if win_rate is not None and avg_win is not None and avg_loss is not None else None
 
     return {
         "win_rate": round(win_rate, 4) if win_rate is not None else None,
@@ -64,4 +90,7 @@ def get_stats():
         "current_streak": current_streak,
         "avg_rr": round(avg_rr, 2) if avg_rr is not None else None,
         "last_15": last_15,
+        "max_drawdown": round(max_dd, 2),
+        "profit_factor": profit_factor,
+        "expectancy": expectancy,
     }

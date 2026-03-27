@@ -6,6 +6,35 @@ from src.db import execute
 logger = logging.getLogger(__name__)
 
 
+def log_position_event(
+    ticket: int,
+    event_type: str,
+    direction: str,
+    price: float,
+    old_sl: float | None = None,
+    new_sl: float | None = None,
+    reasoning: str | None = None,
+):
+    """Record a position manager action (TRAIL_BE, TRAIL_SL, REEVAL_HOLD, REEVAL_CLOSE)."""
+    try:
+        execute(
+            """INSERT INTO position_events
+               (ticket, event_type, direction, old_sl, new_sl, price, reasoning)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (
+                int(ticket),
+                str(event_type),
+                str(direction),
+                float(old_sl) if old_sl is not None else None,
+                float(new_sl) if new_sl is not None else None,
+                float(price),
+                reasoning,
+            ),
+        )
+    except Exception as e:
+        logger.error(f"log_position_event failed: {e}")
+
+
 def log_decision(
     regime: str,
     buy_score: float,

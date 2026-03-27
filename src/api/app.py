@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.mt5_bridge.connection import connect, disconnect
-from src.api.routes import candles, account, signals, decisions, trades, stats, status, killswitch, summary, regime_stats
+from src.api.routes import candles, account, signals, decisions, trades, stats, status, killswitch, summary, regime_stats, position_events, sync
 
 
 @asynccontextmanager
@@ -32,3 +32,5 @@ app.include_router(status.router, prefix="/api")
 app.include_router(killswitch.router, prefix="/api")
 app.include_router(summary.router, prefix="/api")
 app.include_router(regime_stats.router, prefix="/api")
+app.include_router(position_events.router, prefix="/api")
+app.include_router(sync.router, prefix="/api")

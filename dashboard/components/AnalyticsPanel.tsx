@@ -172,7 +172,7 @@ export default function AnalyticsPanel({ signals }: Props) {
               {t.underTheHoodSection}
             </p>
             <ul className="space-y-1.5">
-              {t.underTheHoodLines.map((line, i) => {
+              {t.underTheHoodLines(meta.timeframe, meta.intervalMin).map((line, i) => {
                 const prefix = line.slice(0, 1)
                 const rest = line.slice(3)
                 return (

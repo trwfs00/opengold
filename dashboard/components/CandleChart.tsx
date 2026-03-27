@@ -35,8 +35,12 @@ export default function CandleChart() {
     }
   }, [bot])
 
-  // Reload when range changes
+  // Reload when range changes + poll every 2s for real-time updates
   useEffect(() => { load(range) }, [range, load])
+  useEffect(() => {
+    const id = setInterval(() => load(range), 1000)
+    return () => clearInterval(id)
+  }, [range, load])
 
   // Create chart on mount only
   useEffect(() => {

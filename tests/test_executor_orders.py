@@ -63,7 +63,7 @@ def test_place_order_sell_success():
 def test_place_order_uses_config_symbol(monkeypatch):
     """place_order must use config.SYMBOL, not a hardcoded constant."""
     from src import config
-    monkeypatch.setattr(config, "SYMBOL", "EURUSD")
+    monkeypatch.setattr(config, "SYMBOL", "GBPUSD")
 
     mock_mt5 = _make_mt5_module()
     tick = MagicMock()
@@ -82,7 +82,7 @@ def test_place_order_uses_config_symbol(monkeypatch):
 
     assert result["success"] is True
     call_args = mock_mt5.order_send.call_args[0][0]
-    assert call_args["symbol"] == "EURUSD"
+    assert call_args["symbol"] == "GBPUSD"
 
 
 def test_place_order_rejected():

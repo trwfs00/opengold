@@ -5,7 +5,9 @@ from src.logger.writer import get_kill_switch_state
 from src import config
 
 router = APIRouter()
-BOT_ALIVE_THRESHOLD_SECONDS = 60
+
+# Bot is "alive" if the last decision is within 3× the AI interval (+ 60 s buffer).
+_ALIVE_THRESHOLD = config.AI_INTERVAL_MINUTES * 60 * 3 + 60
 
 
 @router.get("/status")
@@ -25,7 +27,7 @@ def get_status():
         if last_decision.tzinfo is None:
             last_decision = last_decision.replace(tzinfo=timezone.utc)
         age = (datetime.now(timezone.utc) - last_decision).total_seconds()
-        bot_alive = age < BOT_ALIVE_THRESHOLD_SECONDS
+        bot_alive = age < _ALIVE_THRESHOLD
         last_ai_time = last_decision.isoformat()
 
     kill_switch = get_kill_switch_state()

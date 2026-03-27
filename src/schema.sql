@@ -43,6 +43,18 @@ CREATE TABLE IF NOT EXISTS trades (
     result      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS position_events (
+    id          SERIAL PRIMARY KEY,
+    time        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ticket      BIGINT NOT NULL,
+    event_type  TEXT NOT NULL,   -- TRAIL_BE | TRAIL_SL | REEVAL_HOLD | REEVAL_CLOSE
+    direction   TEXT,            -- BUY | SELL
+    old_sl      FLOAT8,
+    new_sl      FLOAT8,
+    price       FLOAT8,          -- current price at event time
+    reasoning   TEXT             -- AI reasoning (for REEVAL events)
+);
+
 CREATE TABLE IF NOT EXISTS system_state (
     key        TEXT PRIMARY KEY,
     value      TEXT,

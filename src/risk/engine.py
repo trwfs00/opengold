@@ -45,7 +45,9 @@ def validate(
         tp_pips = abs(tp - entry) / pip_size
         if not (config.SL_PIPS_MIN <= sl_pips <= config.SL_PIPS_MAX):
             return RiskResult(approved=False, block_reason="INVALID_SL")
-        if tp_pips < config.SL_PIPS_MIN * config.MIN_RR_RATIO:
+        # Add 0.5-pip tolerance: price rounding at 5 decimal places can shave ~0.4 pip
+        # from an exactly-minimum TP, causing spurious INVALID_TP rejections.
+        if sl_pips > 0 and (tp_pips + 0.5) / sl_pips < config.MIN_RR_RATIO:
             return RiskResult(approved=False, block_reason="INVALID_TP")
         lot_size = risk_amount / (sl_pips * config.PIP_VALUE_PER_LOT)
     else:  # Gold / commodities: 1 lot = CONTRACT_SIZE oz

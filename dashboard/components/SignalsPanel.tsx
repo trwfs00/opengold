@@ -30,7 +30,7 @@ function InfoTooltip() {
         <div className="absolute left-0 top-full mt-2 w-80 z-50 bg-zinc-950 border border-zinc-700/60 rounded-lg shadow-2xl shadow-black/60 p-4 text-[11px] font-mono">
           <p className={`${meta.accent} font-semibold text-[10px] uppercase tracking-widest mb-3`}>{t.decisionPipeline}</p>
           <ol className="space-y-2.5 text-zinc-400 list-none">
-            {t.pipelineSteps.map((step, i) => (
+            {t.pipelineSteps(meta.timeframe, meta.intervalMin).map((step, i) => (
               <li key={i} className="flex gap-2">
                 <span className={`${meta.accentDim} font-bold shrink-0`}>{i + 1}.</span>
                 <span><span className="text-zinc-200">{step.label}</span> {step.desc}</span>

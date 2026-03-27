@@ -15,6 +15,7 @@ import DecisionsTable from '@/components/DecisionsTable'
 import TradesTable from '@/components/TradesTable'
 import AnalyticsPanel from '@/components/AnalyticsPanel'
 import ClaudeThought from '@/components/ClaudeThought'
+import PositionEventsPanel from '@/components/PositionEventsPanel'
 
 const POLL_MS = 5000
 
@@ -93,8 +94,11 @@ export default function Page() {
         {/* Tables side by side */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <DecisionsTable />
-          <TradesTable trades={trades} />
+          <TradesTable trades={trades} bot={bot} onRefresh={refresh} />
         </div>
+
+        {/* Position Manager activity log */}
+        <PositionEventsPanel />
         </div>
       </main>
     </div>

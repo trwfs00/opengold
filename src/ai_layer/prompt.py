@@ -33,14 +33,18 @@ def build_prompt(
     )
 
     if config.CONTRACT_SIZE >= 100_000:  # Forex
+        pip_size = 0.01 if "JPY" in config.SYMBOL else 0.0001
+        atr_pips = round(atr / pip_size, 1)
+        sl_example = round(min(max(atr_pips, config.SL_PIPS_MIN), config.SL_PIPS_MAX), 1)
+        # Target 0.15x above minimum to absorb price-rounding loss (~0.4 pip per side)
+        tp_target_ratio = config.MIN_RR_RATIO + 0.15
+        tp_example = round(sl_example * tp_target_ratio, 1)
         role = f"expert {config.SYMBOL} forex scalper"
-        rr_example_sl = config.SL_PIPS_MIN
-        rr_example_tp = rr_example_sl * config.MIN_RR_RATIO
         risk_constraints = (
-            f"- SL distance: {config.SL_PIPS_MIN}–{config.SL_PIPS_MAX} pips from entry\n"
-            f"- TP distance: at least {config.TP_PIPS_MIN} pips from entry\n"
-            f"- TP/SL ratio: at least {config.MIN_RR_RATIO} "
-            f"(e.g. if SL={rr_example_sl:.0f} pips, TP must be >={rr_example_tp:.1f} pips)"
+            f"- SL: {config.SL_PIPS_MIN}\u2013{config.SL_PIPS_MAX} pips from entry\n"
+            f"- TP/SL ratio: minimum {config.MIN_RR_RATIO}x — AIM for {tp_target_ratio:.2f}x to avoid rounding failures\n"
+            f"- Current ATR = {atr_pips} pips \u2192 use SL={sl_example} pips, TP>={tp_example} pips\n"
+            f"  (NEVER set TP at exactly {config.MIN_RR_RATIO}x SL — price rounding will drop it below minimum)"
         )
     else:  # Gold
         role = f"expert gold ({config.SYMBOL}) swing trader"
@@ -61,6 +65,7 @@ def build_prompt(
         '"reasoning": "<one sentence explaining your decision>"}\n'
         f"Risk constraints (your SL/TP MUST satisfy these or the trade will be rejected):\n"
         f"{risk_constraints}\n"
+        "Direction rules: BUY → sl < entry < tp | SELL → tp < entry < sl\n"
         "If uncertain or conditions are unfavourable, use SKIP."
     )
 
