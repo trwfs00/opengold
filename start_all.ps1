@@ -1,4 +1,4 @@
-# OpenGold — 1-Click Startup
+﻿# OpenGold — 1-Click Startup
 # Starts: Gold API, Forex API, Gold Bot, Forex Bot, Next.js Dashboard
 # Usage: Right-click → "Run with PowerShell"  OR  .\start_all.ps1
 
