@@ -99,6 +99,7 @@ def test_get_history_deals_filters_symbol():
     good_deal = MagicMock()
     good_deal.ticket = 1
     good_deal.order = 10
+    good_deal.position_id = 9
     good_deal.time = 1700000000
     good_deal.type = 1
     good_deal.volume = 0.01
@@ -122,3 +123,4 @@ def test_get_history_deals_filters_symbol():
 
     assert len(result) == 1
     assert result[0]["ticket"] == 1
+    assert result[0]["position_id"] == 9

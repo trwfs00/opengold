@@ -67,59 +67,67 @@ def _check_daily_reset(balance: float):
 
 
 def _reconcile_missed_closes(lookback_hours: int = 24):
-    """After reconnect or startup, pull recent deals from MT5 history and log any missed closes."""
+    """After reconnect or startup, pull recent deals from MT5 history and log any missed closes.
+
+    Pairs IN (entry=0) and OUT (entry=1) deals by position_id so we can record the correct
+    open_time and open_price — not the close price in both fields.
+    """
     now = datetime.now(timezone.utc)
-    deals = get_history_deals(now - timedelta(hours=lookback_hours), now)
-    for deal in deals:
-        if deal["entry"] == 1 and abs(deal["profit"]) > 0.01:   # skip breakeven/zero-profit artifacts
-            # MT5 deal type: 0=BUY deal (closes a SELL position), 1=SELL deal (closes BUY position)
-            original_direction = "SELL" if deal["type"] == 0 else "BUY"
-            check_and_log_trade_no_duplicate(
-                open_time=deal["time"],
-                close_time=deal["time"],
-                direction=original_direction,
-                lot_size=deal["volume"],
-                open_price=deal["price"],
-                close_price=deal["price"],
-                sl=0.0,
-                tp=0.0,
-                pnl=deal["profit"],
-            )
+    all_deals = get_history_deals(now - timedelta(hours=lookback_hours), now)
+    # Build a map from position_id → opening deal (for open_time / open_price)
+    in_deals = {d["position_id"]: d for d in all_deals if d["entry"] == 0}
+    out_deals = [d for d in all_deals if d["entry"] == 1 and abs(d["profit"]) > 0.01]
+    for deal in out_deals:
+        # MT5 deal type: 0=BUY deal (closes a SELL position), 1=SELL deal (closes a BUY position)
+        original_direction = "SELL" if deal["type"] == 0 else "BUY"
+        in_deal = in_deals.get(deal["position_id"])
+        open_time = in_deal["time"] if in_deal else deal["time"]
+        open_price = in_deal["price"] if in_deal else deal["price"]
+        check_and_log_trade_no_duplicate(
+            open_time=open_time,
+            close_time=deal["time"],
+            direction=original_direction,
+            lot_size=deal["volume"],
+            open_price=open_price,
+            close_price=deal["price"],
+            sl=0.0,
+            tp=0.0,
+            pnl=deal["profit"],
+        )
 
 
 
 def _log_closed_positions(closed: list[dict]):
-    """Look up closing deals for each closed position and write to trades table."""
+    """Look up closing deals for each closed position and write to trades table.
+
+    Keyed by position_id (= the position ticket in hedging accounts), which correctly
+    links the closing deal back to the position that was tracked in position_snapshot.
+    """
     now = datetime.now(timezone.utc)
     deals = get_history_deals(now - timedelta(hours=2), now)
-    closing_deals = {d["order"]: d for d in deals if d["entry"] == 1}
+    # Key by position_id, NOT by order — position ticket == position_id in hedging mode
+    closing_deals = {d["position_id"]: d for d in deals if d["entry"] == 1}
     for pos in closed:
         deal = closing_deals.get(pos["ticket"])
         if deal is None:
-            # Fallback: use position snapshot data
-            check_and_log_trade_no_duplicate(
-                open_time=datetime.fromisoformat(pos["open_time"]),
-                close_time=now,
-                direction=pos["direction"],
-                lot_size=pos["lots"],
-                open_price=pos["open_price"],
-                close_price=pos["current_price"],
-                sl=pos.get("sl", 0.0),
-                tp=pos.get("tp", 0.0),
-                pnl=pos["unrealized_pnl"],
+            # Closing deal not in the 2-hour window (e.g. TP/SL hit while bot was paused).
+            # Skip here — _reconcile_missed_closes will catch it on next reconnect/restart.
+            logger.warning(
+                f"No closing deal found for position ticket={pos['ticket']} "
+                f"{pos['direction']} opened at {pos['open_time']} — skipping (reconcile will catch it)"
             )
-        else:
-            check_and_log_trade_no_duplicate(
-                open_time=datetime.fromisoformat(pos["open_time"]),
-                close_time=deal["time"],
-                direction=pos["direction"],
-                lot_size=deal["volume"],
-                open_price=pos["open_price"],
-                close_price=deal["price"],
-                sl=pos.get("sl", 0.0),
-                tp=pos.get("tp", 0.0),
-                pnl=deal["profit"],
-            )
+            continue
+        check_and_log_trade_no_duplicate(
+            open_time=datetime.fromisoformat(pos["open_time"]),
+            close_time=deal["time"],
+            direction=pos["direction"],
+            lot_size=deal["volume"],
+            open_price=pos["open_price"],
+            close_price=deal["price"],
+            sl=pos.get("sl", 0.0),
+            tp=pos.get("tp", 0.0),
+            pnl=deal["profit"],
+        )
         logger.info(f"Logged closed trade: {pos['direction']} ticket={pos['ticket']}")
 
 

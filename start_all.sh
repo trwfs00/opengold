@@ -62,7 +62,7 @@ EOF
 
 # ── 1. Gold API ───────────────────────────────────────────────────────────────
 echo "[1/5] Starting Gold API  (port 8000)..."
-open_window "gold api" "uvicorn src.api.app:app --host 127.0.0.1 --port 8000"
+open_window "gold api" "ENV_FILE=gold.env uvicorn src.api.app:app --host 127.0.0.1 --port 8000"
 sleep 3
 
 # ── 2. Forex API ──────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ sleep 3
 
 # ── 3. Gold Bot ───────────────────────────────────────────────────────────────
 echo "[3/5] Starting Gold Bot  (XAUUSDM M1)..."
-open_window "gold bot" "python main.py"
+open_window "gold bot" "python main.py --env gold.env"
 sleep 2
 
 # ── 4. Forex Bot ──────────────────────────────────────────────────────────────

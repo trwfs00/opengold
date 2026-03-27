@@ -57,6 +57,7 @@ def get_history_deals(from_dt: datetime, to_dt: datetime) -> list[dict]:
         {
             "ticket": d.ticket,
             "order": d.order,
+            "position_id": d.position_id,  # links opening and closing deals
             "time": pd.to_datetime(d.time, unit="s", utc=True).to_pydatetime(),
             "type": d.type,
             "volume": d.volume,
